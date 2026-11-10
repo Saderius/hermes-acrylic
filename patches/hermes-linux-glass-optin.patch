@@ -1,0 +1,205 @@
+From 9977c44082ac9dd62ddd86afa05b55e18a47d640 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Patryk=20=28Saderius=29=20Mrozi=C5=84ski?=
+ <41880851+Saderius@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 21:30:53 +0100
+Subject: [PATCH] feat(desktop): opt-in Glass on Linux via a transparent chat
+ window
+
+Linux has no first-party Electron window material, but a compositor
+(KWin, Hyprland, Mutter with ext-background-effect-v1, picom) blurs
+whatever lies behind a transparent window. Launching with
+HERMES_DESKTOP_LINUX_GLASS=1 or --linux-glass now reports Glass as
+supported on Linux and creates chat windows with transparent: true
+when Glass is active at launch.
+
+It is opt-in because Glass is the default wherever it is supported,
+and on a desktop that does not blur a transparent window is plainly
+see-through. Without the opt-in nothing changes:
+glassSupportedOn('linux') still returns false.
+
+Transparency is fixed when a window is created, so switching Glass on
+in Settings takes effect after a restart; a window born opaque keeps
+its themed backing instead of being handed a clear colour.
+
+Tested: electron/translucency.test.ts (82 passing, 4 new). Not yet run
+on a Linux desktop.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ apps/desktop/electron/main.ts              | 31 +++++++++++++++++-----
+ apps/desktop/electron/translucency.test.ts | 28 +++++++++++++++++++
+ apps/desktop/electron/translucency.ts      | 31 ++++++++++++++++++++++
+ 3 files changed, 84 insertions(+), 6 deletions(-)
+
+diff --git a/apps/desktop/electron/main.ts b/apps/desktop/electron/main.ts
+index b97c6782a5..e89b1d1118 100644
+--- a/apps/desktop/electron/main.ts
++++ b/apps/desktop/electron/main.ts
+@@ -589,6 +589,7 @@ import {
+   defaultTranslucencyState,
+   glassActive,
+   glassSupportedOn,
++  linuxGlassOptIn,
+   nativeOpacityFor,
+   normalizeState as normalizeTranslucency,
+   opacityNeedsSetting,
+@@ -597,7 +598,8 @@ import {
+   windowBackgroundMaterialOptions,
+   windowBackingOptions,
+   windowOpacityFor,
+-  windowOpacityOptions
++  windowOpacityOptions,
++  windowTransparencyOptions
+ } from './translucency'
+ import { registerMachineUiPreferences } from './ui-preferences-ipc'
+ import {
+@@ -783,9 +785,13 @@ const IS_WSL = isWslEnvironment()
+ const DARWIN_MAJOR = IS_MAC ? Number.parseInt(os.release(), 10) || 0 : 0
+ // Glass: macOS vibrancy, or Windows 11 22H2+ system backdrop. Computed once
+ // so the renderer, the persisted default, and every chat window agree.
+-const GLASS_SUPPORTED = glassSupportedOn(process.platform, os.release())
+-// Settings drops the row on Linux, so nativeOpacityFor keeps the fade off there.
+-const TRANSLUCENCY_SUPPORTED = translucencySupportedOn(process.platform)
++// Linux joins only when the launch opted in (see linuxGlassOptIn): there the
++// material is the compositor's blur behind a transparent window.
++const LINUX_GLASS = linuxGlassOptIn(process.platform, process.env, process.argv)
++const GLASS_SUPPORTED = glassSupportedOn(process.platform, os.release()) || LINUX_GLASS
++// Settings drops the row on Linux, so nativeOpacityFor keeps the fade off there
++// unless the launch opted into Linux Glass.
++const TRANSLUCENCY_SUPPORTED = translucencySupportedOn(process.platform) || LINUX_GLASS
+ const APP_ROOT = app.getAppPath()
+ 
+ // Device-local preference: block F12 from opening DevTools.
+@@ -1499,6 +1505,10 @@ function writePersistedTranslucency(state) {
+ 
+ let translucencyState = readPersistedTranslucency()
+ 
++// Linux Glass is decided once per process: a window is transparent only if it
++// is created that way, so the state at launch is the one that counts.
++const LINUX_GLASS_AT_LAUNCH = LINUX_GLASS && glassActive(translucencyState)
++
+ // Chat windows whose webContents backing follows translucency (primary,
+ // instance peers, session windows). The HUD / pet overlay / quick entry /
+ // wake indicator are `transparent: true` windows that own their backgrounds —
+@@ -1555,7 +1565,11 @@ function applyWindowTranslucency(win, changed = { backing: true, material: true,
+         applyWindowsBackdrop(win, translucencyState, changed, getWindowBackgroundColor())
+       } else {
+         if (changed.backing && typeof win.setBackgroundColor === 'function') {
+-          win.setBackgroundColor(glassActive(translucencyState) ? '#00000000' : getWindowBackgroundColor())
++          // On Linux only a window born transparent may drop its backing; an
++          // opaque one handed a clear colour paints black.
++          const clearBacking = glassActive(translucencyState) && (!LINUX_GLASS || LINUX_GLASS_AT_LAUNCH)
++
++          win.setBackgroundColor(clearBacking ? '#00000000' : getWindowBackgroundColor())
+         }
+ 
+         // Animate deliberate macOS frost changes, not unrelated tint updates.
+@@ -1611,7 +1625,12 @@ function chatWindowSurfaceOptions() {
+     // Every chat window is resizable.
+     ...windowBackgroundMaterialOptions(translucencyState, IS_WINDOWS, GLASS_SUPPORTED),
+     ...windowOpacityOptions(translucencyState, TRANSLUCENCY_SUPPORTED),
+-    ...windowBackingOptions(translucencyState, getWindowBackgroundColor())
++    ...windowBackingOptions(translucencyState, getWindowBackgroundColor()),
++    // Linux Glass: transparent from birth so the compositor can blur behind it.
++    // After the backing so an opaque-at-launch process keeps its themed colour
++    // even while Glass is selected (see LINUX_GLASS_AT_LAUNCH).
++    ...windowTransparencyOptions(translucencyState, LINUX_GLASS_AT_LAUNCH),
++    ...(LINUX_GLASS && !LINUX_GLASS_AT_LAUNCH ? { backgroundColor: getWindowBackgroundColor() } : {})
+   }
+ }
+ 
+diff --git a/apps/desktop/electron/translucency.test.ts b/apps/desktop/electron/translucency.test.ts
+index 87d83b7eba..66910b41cc 100644
+--- a/apps/desktop/electron/translucency.test.ts
++++ b/apps/desktop/electron/translucency.test.ts
+@@ -26,6 +26,7 @@ import {
+   glassSupportedOn,
+   glassSurfaceKeep,
+   hudFrostFor,
++  linuxGlassOptIn,
+   nativeOpacityFor,
+   normalizeBook,
+   normalizeMaterial,
+@@ -46,6 +47,7 @@ import {
+   windowBackingOptions,
+   windowOpacityFor,
+   windowOpacityOptions,
++  windowTransparencyOptions,
+   WINDOWS_BACKGROUND_MATERIALS,
+   WINDOWS_GLASS_MIN_BUILD
+ } from './translucency'
+@@ -471,6 +473,32 @@ describe('windowBackingOptions', () => {
+   })
+ })
+ 
++describe('linuxGlassOptIn', () => {
++  it('is off unless the launch asks for it', () => {
++    expect(linuxGlassOptIn('linux', {}, ['hermes'])).toBe(false)
++    expect(linuxGlassOptIn('linux', { HERMES_DESKTOP_LINUX_GLASS: '0' }, ['hermes'])).toBe(false)
++  })
++
++  it('is on by environment or by flag, on Linux only', () => {
++    expect(linuxGlassOptIn('linux', { HERMES_DESKTOP_LINUX_GLASS: '1' }, ['hermes'])).toBe(true)
++    expect(linuxGlassOptIn('linux', {}, ['hermes', '--linux-glass'])).toBe(true)
++    expect(linuxGlassOptIn('win32', { HERMES_DESKTOP_LINUX_GLASS: '1' }, ['hermes', '--linux-glass'])).toBe(false)
++    expect(linuxGlassOptIn('darwin', { HERMES_DESKTOP_LINUX_GLASS: '1' }, ['hermes'])).toBe(false)
++  })
++})
++
++describe('windowTransparencyOptions', () => {
++  it('makes the window transparent only when Linux Glass was active at launch', () => {
++    expect(windowTransparencyOptions(glass(60), true)).toEqual({ transparent: true, backgroundColor: '#00000000' })
++    expect(windowTransparencyOptions(glass(60), false)).toEqual({})
++  })
++
++  it('stays opaque while glass is off, even on an opted-in launch', () => {
++    expect(windowTransparencyOptions(glass(0), true)).toEqual({})
++    expect(windowTransparencyOptions(clear(60), true)).toEqual({})
++  })
++})
++
+ describe('windowBackgroundMaterialOptions', () => {
+   it('omits the Windows backdrop when glass is inactive', () => {
+     expect(windowBackgroundMaterialOptions(glass(0), true, true)).toEqual({})
+diff --git a/apps/desktop/electron/translucency.ts b/apps/desktop/electron/translucency.ts
+index 8754f7ea9c..908b933b3e 100644
+--- a/apps/desktop/electron/translucency.ts
++++ b/apps/desktop/electron/translucency.ts
+@@ -167,3 +167,34 @@ export function windowOpacityOptions(state: TranslucencyState, supported = true)
+ 
+   return opacityNeedsSetting(opacity) ? { opacity } : {}
+ }
++
++/**
++ * Whether this launch opted into Glass on Linux.
++ *
++ * Linux has no first-party Electron material, but a compositor (KWin,
++ * Hyprland, Mutter with ext-background-effect-v1, picom) blurs whatever lies
++ * behind a transparent window. That needs the window to be transparent, and
++ * what is behind it is outside the app's control: on a desktop that does not
++ * blur, the window is plainly see-through. So it is never a default. The user
++ * asks for it per launch, by environment or by flag.
++ */
++export function linuxGlassOptIn(
++  platform: string,
++  env: Record<string, string | undefined>,
++  argv: readonly string[]
++): boolean {
++  return platform === 'linux' && (env.HERMES_DESKTOP_LINUX_GLASS === '1' || argv.includes('--linux-glass'))
++}
++
++/**
++ * BrowserWindow constructor options that make a Linux chat window transparent
++ * for compositor blur. Empty unless this process launched with Linux Glass
++ * active: transparency is fixed when a window is created, so a window born
++ * opaque stays opaque until the app restarts.
++ */
++export function windowTransparencyOptions(
++  state: TranslucencyState,
++  linuxGlassAtLaunch: boolean
++): { backgroundColor?: string; transparent?: true } {
++  return linuxGlassAtLaunch && glassActive(state) ? { transparent: true, backgroundColor: '#00000000' } : {}
++}
+-- 
+2.55.0.windows.3
+

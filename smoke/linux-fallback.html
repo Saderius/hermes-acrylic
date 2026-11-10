@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hermes-acrylic Linux fallback</title>
+<style>
+  :root {
+    --material-tint: rgba(32, 32, 32, 0.55);
+    --material-tint-light: rgba(252, 252, 252, 0.55);
+    --control-fill: rgba(255, 255, 255, 0.06);
+    --control-fill-light: rgba(255, 255, 255, 0.7);
+    --card: #2b2b2b;
+    --card-light: #fbfbfb;
+    --muted: #2d2d2d;
+    --muted-light: #ebebeb;
+    --wall: #3a7bff;
+    --wall-b: #ff00aa;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font: 14px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    color: #fff;
+    background: #0a1a4a;
+  }
+  .wallpaper {
+    position: fixed;
+    inset: -8%;
+    background:
+      linear-gradient(115deg, #0a1a4a 0%, var(--wall) 38%, var(--wall-b) 62%, #0a1a4a 100%);
+    z-index: 0;
+  }
+  .page {
+    position: relative;
+    z-index: 1;
+    padding: 28px 32px 40px;
+    display: grid;
+    gap: 22px;
+  }
+  header h1 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  header p { margin: 0; max-width: 78ch; color: #f3f3f3; text-shadow: 0 1px 8px #0008; }
+  .stage {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 22px;
+    align-items: start;
+  }
+  .window {
+    position: relative;
+    height: 460px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.18);
+    box-shadow: 0 24px 60px #0008;
+  }
+  /* Stand-in desktop: blur THIS layer, never backdrop-filter. */
+  .standin {
+    position: absolute;
+    inset: -12%;
+    background:
+      linear-gradient(115deg, #0a1a4a 0%, var(--wall) 38%, var(--wall-b) 62%, #0a1a4a 100%);
+    filter: blur(30px) saturate(1.25);
+    transform: scale(1.08);
+  }
+  .plate {
+    position: absolute;
+    inset: 0;
+    background: var(--material-tint);
+  }
+  .window.light .plate { background: var(--material-tint-light); }
+  .ui {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 196px 1fr;
+    height: 100%;
+    color: #fff;
+  }
+  .window.light .ui { color: #1b1b1b; }
+  .rail {
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-right: 1px solid rgba(255,255,255,.08);
+  }
+  .window.light .rail { border-right-color: rgba(0,0,0,.06); }
+  .brand { font-weight: 650; font-size: 13px; letter-spacing: .01em; }
+  .nav {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    opacity: .92;
+  }
+  .nav li { padding: 6px 8px; border-radius: 6px; }
+  .nav li.on { background: rgba(255,255,255,.08); }
+  .window.light .nav li.on { background: rgba(255,255,255,.7); }
+  .hint { margin-top: auto; font-size: 11px; opacity: .8; }
+  .chat {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 16px;
+    gap: 10px;
+  }
+  .chat h2 { margin: 0; font-size: 15px; font-weight: 650; }
+  .sub { margin: 0; font-size: 12px; opacity: .78; }
+  .bubble, .code, .menu, .composer {
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .window.light .bubble,
+  .window.light .code,
+  .window.light .menu,
+  .window.light .composer { border-color: rgba(0,0,0,.06); }
+  .bubble {
+    align-self: flex-end;
+    max-width: 34ch;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: linear-gradient(var(--control-fill), var(--control-fill)), var(--card);
+    font-size: 13px;
+  }
+  .window.light .bubble {
+    background: linear-gradient(var(--control-fill-light), var(--control-fill-light)), var(--card-light);
+  }
+  .code {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: linear-gradient(var(--control-fill), var(--control-fill)), var(--muted);
+    font: 12px/1.45 "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+    white-space: pre;
+    overflow: auto;
+  }
+  .window.light .code {
+    background: linear-gradient(var(--control-fill-light), var(--control-fill-light)), var(--muted-light);
+  }
+  .menu {
+    align-self: flex-start;
+    width: 220px;
+    padding: 6px;
+    border-radius: 8px;
+    background: #2c2c2c;
+    box-shadow: 0 10px 28px #0006;
+    font-size: 13px;
+  }
+  .window.light .menu { background: #f9f9f9; color: #1b1b1b; }
+  .menu div { padding: 6px 8px; border-radius: 5px; }
+  .menu div.on { background: #005fb8; color: #fff; }
+  .composer {
+    margin-top: auto;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: linear-gradient(var(--control-fill), var(--control-fill)), var(--card);
+    color: inherit;
+    opacity: .95;
+  }
+  .window.light .composer {
+    background: linear-gradient(var(--control-fill-light), var(--control-fill-light)), var(--card-light);
+  }
+  .math {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px 22px;
+    align-items: center;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(10, 16, 28, .72);
+    border: 1px solid rgba(255,255,255,.12);
+  }
+  .swatches { display: flex; flex-wrap: wrap; gap: 14px; }
+  .swatch { width: 148px; }
+  .swatch .chip {
+    height: 64px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.2);
+    position: relative;
+    overflow: hidden;
+  }
+  .swatch .chip > span {
+    position: absolute;
+    inset: 0;
+  }
+  .swatch figcaption { margin-top: 6px; font-size: 12px; color: #ddd; }
+  #math-status { margin: 0; font-size: 13px; }
+  #math-status.ok { color: #b6f5c8; }
+  #math-status.bad { color: #ffb4b4; }
+  code { font-family: "Cascadia Code", Consolas, ui-monospace, monospace; font-size: 12px; }
+  @media (max-width: 980px) {
+    .stage { grid-template-columns: 1fr; }
+    .window { height: 440px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wallpaper" aria-hidden="true"></div>
+  <div class="page">
+    <header>
+      <h1>Linux / no-Glass acrylic fallback</h1>
+      <p>
+        Same recipe as the plugin when <code>[data-hermes-glass]</code> is absent:
+        blur the stand-in wallpaper with <code>blur(30px) saturate(1.25)</code>,
+        then paint Packshot <code>--material-tint</code> at alpha .55.
+        Composer, bubble, menu, and code stay solid.
+        This does not blur other apps. Real acrylic is still Win11 Glass, frost under-window, scope window.
+      </p>
+    </header>
+    <div class="stage">
+      <section class="window dark" aria-label="Dark Packshot fallback">
+        <div class="standin"></div>
+        <div class="plate"></div>
+        <div class="ui">
+          <aside class="rail">
+            <div class="brand">Windows Acrylic</div>
+            <ul class="nav">
+              <li class="on">Chat</li>
+              <li>Appearance</li>
+              <li>Plugins</li>
+            </ul>
+            <p class="hint">Rail is the .55 plate over the blurred stand-in. No OS material on Linux.</p>
+          </aside>
+          <div class="chat">
+            <h2>CSS fallback</h2>
+            <p class="sub">Dark tint rgba(32, 32, 32, .55). Wallpaper shows through; holdouts do not.</p>
+            <div class="bubble">Normal blend only. Multiply was the drag GPU, and it stays off.</div>
+            <pre class="code">body { background: var(--material-tint) }
+filter: blur(30px) saturate(1.25)</pre>
+            <div class="menu" role="listbox" aria-label="Scope">
+              <div class="on">Scope: window</div>
+              <div>Scope: sidebar (rail only)</div>
+            </div>
+            <div class="composer">Message — solid composer</div>
+          </div>
+        </div>
+      </section>
+      <section class="window light" aria-label="Light Packshot fallback">
+        <div class="standin"></div>
+        <div class="plate"></div>
+        <div class="ui">
+          <aside class="rail">
+            <div class="brand">Windows Acrylic</div>
+            <ul class="nav">
+              <li class="on">Chat</li>
+              <li>Appearance</li>
+            </ul>
+            <p class="hint">Light tint rgba(252, 252, 252, .55).</p>
+          </aside>
+          <div class="chat">
+            <h2>Light plate</h2>
+            <p class="sub">Same wallpaper, light Packshot tint.</p>
+            <div class="bubble">Holdouts use the opaque card fill, not the plate.</div>
+            <pre class="code">rgba(252,252,252,.55)</pre>
+            <div class="composer">Message — solid composer</div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <section class="math" aria-label="Packshot 0.55 composite">
+      <div class="swatches">
+        <figure class="swatch">
+          <div class="chip" style="background:#3a7bff"></div>
+          <figcaption>Wallpaper #3a7bff</figcaption>
+        </figure>
+        <figure class="swatch">
+          <div class="chip" id="dark-layered" style="background:#3a7bff"><span style="background:rgba(32,32,32,.55)"></span></div>
+          <figcaption>Layered dark .55</figcaption>
+        </figure>
+        <figure class="swatch">
+          <div class="chip" id="dark-computed"></div>
+          <figcaption>Computed dark .55</figcaption>
+        </figure>
+        <figure class="swatch">
+          <div class="chip" id="light-layered" style="background:#3a7bff"><span style="background:rgba(252,252,252,.55)"></span></div>
+          <figcaption>Layered light .55</figcaption>
+        </figure>
+        <figure class="swatch">
+          <div class="chip" id="light-computed"></div>
+          <figcaption>Computed light .55</figcaption>
+        </figure>
+      </div>
+      <p id="math-status">Checking sRGB composite…</p>
+    </section>
+  </div>
+  <script>
+    function composite(dst, src, alpha) {
+      return dst.map((d, i) => Math.round(src[i] * alpha + d * (1 - alpha)))
+    }
+    const wall = [0x3a, 0x7b, 0xff]
+    const dark = composite(wall, [32, 32, 32], 0.55)
+    const light = composite(wall, [252, 252, 252], 0.55)
+    const expectedDark = [44, 73, 132]
+    const expectedLight = [165, 194, 253]
+    function same(a, b) { return a.every((n, i) => n === b[i]) }
+    const darkOk = same(dark, expectedDark)
+    const lightOk = same(light, expectedLight)
+    document.getElementById('dark-computed').style.background = `rgb(${dark.join(',')})`
+    document.getElementById('light-computed').style.background = `rgb(${light.join(',')})`
+    const status = document.getElementById('math-status')
+    const ok = darkOk && lightOk
+    status.className = ok ? 'ok' : 'bad'
+    status.dataset.math = ok ? 'ok' : 'mismatch'
+    status.textContent = ok
+      ? `Match. Dark rgb(${dark.join(', ')}) and light rgb(${light.join(', ')}) equal tint × 0.55 + #3a7bff × 0.45.`
+      : `Mismatch. Got dark ${dark.join(',')} light ${light.join(',')}.`
+  </script>
+</body>
+</html>

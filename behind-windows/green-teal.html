@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset=utf-8><title>green-teal</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden}
+.bg{
+  position:fixed;inset:-20%;
+  background:linear-gradient(120deg,#022c22,#00ffa3,#00c2ff,#022c22);
+  background-size:300% 300%;
+  animation:move 8s ease-in-out infinite;
+  filter:saturate(1.4);
+}
+@keyframes move{
+  0%{background-position:0% 50%;transform:rotate(0deg) scale(1.05)}
+  50%{background-position:100% 50%;transform:rotate(2deg) scale(1.12)}
+  100%{background-position:0% 50%;transform:rotate(0deg) scale(1.05)}
+}
+.label{position:fixed;left:24px;bottom:24px;color:#fff;font:600 28px system-ui;text-shadow:0 2px 12px #000a}
+</style></head><body><div class=bg></div><div class=label>green-teal</div></body></html>

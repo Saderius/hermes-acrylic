@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+smoke/*.png
+
+# local unpack source
+uploads/
+
+# internal working notes: kept locally, not published
+CASE-FILE.md
+SESSION_HANDOFF.md
+HANDOFF.md
+docs/packets/*_agy.log
+docs/packets/*.before.js
