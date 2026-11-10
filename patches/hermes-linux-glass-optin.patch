@@ -2,8 +2,8 @@ From 9977c44082ac9dd62ddd86afa05b55e18a47d640 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Patryk=20=28Saderius=29=20Mrozi=C5=84ski?=
  <41880851+Saderius@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 21:30:53 +0100
-Subject: [PATCH] feat(desktop): opt-in Glass on Linux via a transparent chat
- window
+Subject: [PATCH 1/2] feat(desktop): opt-in Glass on Linux via a transparent
+ chat window
 
 Linux has no first-party Electron window material, but a compositor
 (KWin, Hyprland, Mutter with ext-background-effect-v1, picom) blurs
@@ -200,6 +200,144 @@ index 8754f7ea9c..908b933b3e 100644
 +): { backgroundColor?: string; transparent?: true } {
 +  return linuxGlassAtLaunch && glassActive(state) ? { transparent: true, backgroundColor: '#00000000' } : {}
 +}
+-- 
+2.55.0.windows.3
+
+
+From 6182135abf2e353dcfd78a1da16f3bf232fbf5ef Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Patryk=20=28Saderius=29=20Mrozi=C5=84ski?=
+ <41880851+Saderius@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 23:30:08 +0100
+Subject: [PATCH 2/2] fix(desktop): measure the glass rail edge when the
+ sidebar mounts late
+
+Sidebar-scope Glass splits <body>'s paint at the rail's edge, published
+as --glass-rail-edge. Glass is applied on the store's first sync, which
+is before React mounts the sidebar, so the first measurement found no
+rail and wrote 0px. A ResizeObserver cannot watch an element that does
+not exist, so nothing measured again until the next settings change or
+window resize: the whole window painted opaque on launch.
+
+Reproduced on Windows 11 with a fresh profile (rail present at 260px,
+edge still 0px) and reported on Linux as a fully opaque first launch.
+
+While no rail exists, watch for one to be added, measure once, and
+stop watching.
+
+Tested: src/store/translucency.test.ts (32 passing, 1 new; the new test
+fails without the fix). Not yet seen in a running app.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+---
+ apps/desktop/src/store/translucency.test.ts | 28 ++++++++++++++++
+ apps/desktop/src/store/translucency.ts      | 37 +++++++++++++++++++++
+ 2 files changed, 65 insertions(+)
+
+diff --git a/apps/desktop/src/store/translucency.test.ts b/apps/desktop/src/store/translucency.test.ts
+index 52bddfe288..270c903add 100644
+--- a/apps/desktop/src/store/translucency.test.ts
++++ b/apps/desktop/src/store/translucency.test.ts
+@@ -272,6 +272,34 @@ describe('frost and area', () => {
+     setTranslucencyMode('clear')
+     expect(document.documentElement.hasAttribute('data-hermes-glass-scope')).toBe(false)
+   })
++
++  // Glass is applied on the store's first sync, before the sidebar mounts. The
++  // seam has to follow the rail once it appears, or the window stays opaque
++  // until the next settings change.
++  it('measures the rail edge when the sidebar mounts after glass is already on', async () => {
++    if (!GLASS_SUPPORTED) {
++      return
++    }
++
++    const edge = () => document.documentElement.style.getPropertyValue('--glass-rail-edge')
++
++    setTranslucency(50)
++    setTranslucencyScope('sidebar')
++    setTranslucencyMode('glass')
++    expect(edge()).toBe('0px')
++
++    const rail = document.createElement('div')
++
++    rail.setAttribute('data-slot', 'sidebar')
++    rail.getBoundingClientRect = () => ({ left: 0, right: 260 }) as DOMRect
++    document.body.append(rail)
++
++    try {
++      await vi.waitFor(() => expect(edge()).toBe('260px'))
++    } finally {
++      rail.remove()
++    }
++  })
+ })
+ 
+ // A held slider drag and a timed pulse from a picker click can overlap, which
+diff --git a/apps/desktop/src/store/translucency.ts b/apps/desktop/src/store/translucency.ts
+index cd2ca65bf0..e66a9353ff 100644
+--- a/apps/desktop/src/store/translucency.ts
++++ b/apps/desktop/src/store/translucency.ts
+@@ -200,6 +200,39 @@ let railObserver: null | ResizeObserver = null
+ let railTarget: Element | null = null
+ let railTrackingOn = false
+ 
++// Watches for a rail that does not exist yet. Glass is applied on the store's
++// first sync, which is before React mounts the sidebar, and a ResizeObserver
++// cannot be put on an element that is not there. Without this the seam stays
++// at 0px, the whole window paints opaque, and glass only appears after the
++// next settings change or window resize.
++let railWaiter: MutationObserver | null = null
++
++const stopWaitingForRail = (): void => {
++  railWaiter?.disconnect()
++  railWaiter = null
++}
++
++const waitForRail = (): void => {
++  if (railWaiter || typeof MutationObserver === 'undefined' || !document.body) {
++    return
++  }
++
++  railWaiter = new MutationObserver(records => {
++    if (!records.some(record => record.addedNodes.length > 0)) {
++      return
++    }
++
++    if (document.querySelector('[data-slot="sidebar"]')) {
++      stopWaitingForRail()
++
++      if (railTrackingOn) {
++        measureRailEdge()
++      }
++    }
++  })
++  railWaiter.observe(document.body, { childList: true, subtree: true })
++}
++
+ const measureRailEdge = (): void => {
+   const root = document.documentElement
+   const rail = document.querySelector('[data-slot="sidebar"]')
+@@ -221,10 +254,13 @@ const measureRailEdge = (): void => {
+     // window edge and the whole field stays opaque — glass simply waits for
+     // a rail to exist.
+     root.style.setProperty('--glass-rail-edge', '0px')
++    waitForRail()
+ 
+     return
+   }
+ 
++  stopWaitingForRail()
++
+   const rect = rail.getBoundingClientRect()
+   const rtl = getComputedStyle(root).direction === 'rtl'
+   const edge = rtl ? window.innerWidth - rect.left : rect.right
+@@ -266,6 +302,7 @@ const stopRailTracking = (): void => {
+   }
+ 
+   railTrackingOn = false
++  stopWaitingForRail()
+ 
+   if (railObserver && railTarget) {
+     railObserver.unobserve(railTarget)
 -- 
 2.55.0.windows.3
 
