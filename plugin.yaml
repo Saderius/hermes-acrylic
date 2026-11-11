@@ -1,0 +1,12 @@
+name: acrylic
+manifest_version: 2
+version: "1.0.0"
+description: "Acrylic glass for Hermes Desktop: frosted theme with four presets, real system acrylic on Windows 11"
+author: "Saderius"
+license: "MIT"
+requires_hermes: ">=0.23.0"
+tags:
+  - desktop
+  - themes
+  - glass
+  - hackathon

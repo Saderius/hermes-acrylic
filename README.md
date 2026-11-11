@@ -198,7 +198,10 @@ Real acrylic still comes from the host: with **Settings → Appearance → Windo
 Requires **Windows 11 22H2 (build 22621)+**. macOS uses vibrancy. Linux has no first-party backdrop material (Glass is not offered); the theme still applies the CSS fallback over Chat Backdrop.
 
 ## Install / reload
-1. Copy this folder into Hermes Desktop's disk-plugins dir (folder name = plugin id):
+From the catalog: `hermes plugins install acrylic`.
+
+By hand:
+1. Copy `desktop/plugin.js` into Hermes Desktop's disk-plugins dir, in a folder named after the plugin id:
    - **Windows:** `%LOCALAPPDATA%\hermes\desktop-plugins\hermes-acrylic\`
    - **macOS / Linux:** `~/.hermes/desktop-plugins/hermes-acrylic/`
 2. The app hot-loads within seconds; otherwise ⌘K / Ctrl+K → **Reload desktop plugins**.
