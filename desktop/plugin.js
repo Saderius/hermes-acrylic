@@ -569,11 +569,11 @@ ${noGlass(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Comma
 ${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-radix-popper-content-wrapper] > [data-side], [data-slot='composer-completion-drawer'], [data-acrylic-flyout], .hsj-detail`)} {
   background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 90%, transparent) !important;
 }
-${underGlass(`[data-contrib-shell]`)} {
+${underGlass(`[data-contrib-shell], [data-persistent-terminal]`)} {
   transition: filter 140ms ease-out;
 }
-:root[data-hermes-glass]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) [data-contrib-shell],
-:root[data-hermes-glass-on]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) [data-contrib-shell] {
+:root[data-hermes-glass]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) :is([data-contrib-shell], [data-persistent-terminal]),
+:root[data-hermes-glass-on]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) :is([data-contrib-shell], [data-persistent-terminal]) {
   filter: blur(16px) saturate(1.1) !important;
 }
 ${both(`[role='dialog'][class*='left-1/2'] [data-slot='command'], [role='dialog'][aria-label='Command palette'] [data-slot='command']`)} {
@@ -612,7 +612,7 @@ ${both(`[data-terminal-slot], [data-persistent-terminal]`)} {
 ${both(`[data-terminal]`)} {
   background: transparent !important;
   border: none !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important;
   inset: 4px 6px 6px 6px !important;
   contain: none !important;
   isolation: auto !important;
@@ -628,6 +628,10 @@ ${both(`[data-terminal]`)} {
    the pane, frame and tab strip, which keep the window material. */
 [data-contrib-shell] {
   --ui-terminal-surface-background: transparent !important;
+}
+${both(`[data-terminal] .xterm-screen`)} {
+  outline: 1px solid var(--layer-stroke) !important;
+  outline-offset: 0 !important;
 }
 ${both(`[data-suppress-pane-reveal]`)} {
   background-color: transparent !important;
