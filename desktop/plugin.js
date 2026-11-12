@@ -610,8 +610,8 @@ ${both(`[data-terminal-slot], [data-persistent-terminal]`)} {
   backdrop-filter: none !important;
 }
 ${both(`[data-terminal]`)} {
-  background: var(--ui-terminal-surface-background) !important;
-  border: 1px solid var(--layer-stroke) !important;
+  background: transparent !important;
+  border: none !important;
   border-radius: 8px !important;
   inset: 4px 6px 6px 6px !important;
   contain: none !important;
@@ -622,6 +622,12 @@ ${both(`[data-terminal]`)} {
 :root,
 :root.dark {
   --ui-terminal-surface-background: var(--theme-background-seed, #202020) !important;
+}
+/* Hermes reads this token at <body> level for the terminal's text area (kept
+   solid: its fast renderer cannot be see-through) and inside the app shell for
+   the pane, frame and tab strip, which keep the window material. */
+[data-contrib-shell] {
+  --ui-terminal-surface-background: transparent !important;
 }
 ${both(`[data-suppress-pane-reveal]`)} {
   background-color: transparent !important;
