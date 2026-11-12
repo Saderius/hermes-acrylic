@@ -1024,7 +1024,7 @@ function AppearanceCard() {
   ] : glassOn ? [
     'Glass is on: Windows draws the real acrylic behind the window.',
     'Presets change how deep the tint is: Acrylic, Frosted, Sanded, Expressive.',
-    'Menus, the prompt box and Settings blur the page behind them. The terminal keeps its own solid background.'
+    'While Ctrl+K is open the app behind it blurs; menus get a denser glass. The terminal is one solid panel in the theme colour.'
   ] : [
     'Pick the Windows Acrylic theme (or turn on Every theme to tint any theme).',
     'For real acrylic: Settings → Appearance → Window Translucency → Glass (the Glass settings button opens Settings). Acrylic never changes that setting for you.',
