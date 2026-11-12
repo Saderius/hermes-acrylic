@@ -218,6 +218,7 @@ ${both(`[data-glass-opaque]`)} {
    1. Override styles.css:730's 94%-opaque --ui-*-surface-background rules on [data-glass-raised].
    2. Give [data-glass-raised] a translucent Acrylic tint (--acrylic-overlay-card) + noise grain. */
 ${underGlass(`[data-overlay-surface]`)} {
+  background: transparent !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
@@ -564,17 +565,79 @@ ${noGlass(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Comma
   backdrop-filter: blur(24px) saturate(1.3) !important;
 }
 /* Under Glass a CSS blur only sees the page, never the Windows material, so
-   floating menus carry a denser fill instead, and while Ctrl+K is open the app
-   behind it is blurred so Ctrl+K itself stays clear glass. */
+   floating menus carry a denser fill instead. Ctrl+K and full-page cards get
+   the real material: see the cut-outs below. */
 ${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-radix-popper-content-wrapper] > [data-side], [data-slot='composer-completion-drawer'], [data-acrylic-flyout], .hsj-detail`)} {
   background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 90%, transparent) !important;
 }
-${underGlass(`[data-contrib-shell], [data-persistent-terminal]`)} {
-  transition: filter 140ms ease-out;
+/* Ctrl+K and full-page cards under Glass: the app is cut away exactly under
+   them, so they show the window's real acrylic instead of the page.
+   Sizes come from Hermes: the palette is floating-hud.ts (top-3, centred,
+   min(34rem, 100vw - 2rem)) and gets a fixed height here; a full-page card
+   is overlay-view.tsx (inset = 34px titlebar + 0.625rem, 0.875rem from 40rem). */
+:root {
+  --acrylic-hud-w: min(34rem, calc(100vw - 2rem));
+  --acrylic-hud-h: calc(min(20rem, 56vh) + 2.75rem);
+  --acrylic-hud-top: 0.75rem;
+  --acrylic-card-inset: calc(34px + 0.625rem);
 }
-:root[data-hermes-glass]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) :is([data-contrib-shell], [data-persistent-terminal]),
-:root[data-hermes-glass-on]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) :is([data-contrib-shell], [data-persistent-terminal]) {
-  filter: blur(16px) saturate(1.1) !important;
+@media not all and (min-width: 44rem) {
+  :root { --acrylic-hud-top: calc(var(--titlebar-height, 34px) + 0.375rem); }
+}
+@media (min-width: 40rem) {
+  :root { --acrylic-card-inset: calc(34px + 0.875rem); }
+}
+${underGlass(`[role='dialog'][class*='top-3'][class*='min(34rem']`)} {
+  height: var(--acrylic-hud-h) !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+${underGlass(`[role='dialog'][class*='top-3'][class*='min(34rem'] [data-slot='command']`)} {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+${underGlass(`[role='dialog'][class*='top-3'][class*='min(34rem'] [data-slot='command-list']`)} {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+:root[data-hermes-glass]:has([role='dialog'][class*='top-3'][class*='min(34rem']) #root,
+:root[data-hermes-glass-on]:has([role='dialog'][class*='top-3'][class*='min(34rem']) #root {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-size: var(--acrylic-hud-w) var(--acrylic-hud-h), 100% 100%;
+  -webkit-mask-position: 50% var(--acrylic-hud-top), 0 0;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: xor;
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-size: var(--acrylic-hud-w) var(--acrylic-hud-h), 100% 100%;
+  mask-position: 50% var(--acrylic-hud-top), 0 0;
+  mask-repeat: no-repeat;
+  mask-composite: exclude;
+}
+:root[data-hermes-glass]:has([data-overlay-surface]) [data-contrib-shell],
+:root[data-hermes-glass-on]:has([data-overlay-surface]) [data-contrib-shell] {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-size: calc(100% - 2 * var(--acrylic-card-inset)) calc(100% - 2 * var(--acrylic-card-inset)), 100% 100%;
+  -webkit-mask-position: var(--acrylic-card-inset) var(--acrylic-card-inset), 0 0;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: xor;
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-size: calc(100% - 2 * var(--acrylic-card-inset)) calc(100% - 2 * var(--acrylic-card-inset)), 100% 100%;
+  mask-position: var(--acrylic-card-inset) var(--acrylic-card-inset), 0 0;
+  mask-repeat: no-repeat;
+  mask-composite: exclude;
+}
+/* The terminal is placed by inline pixel values a stylesheet cannot read, so
+   while a full-page card is open it is hidden instead of cut. Opacity as well,
+   as Hermes does: Electron can keep the WebGL canvas on screen under visibility. */
+:root[data-hermes-glass]:has([data-overlay-surface]) [data-persistent-terminal],
+:root[data-hermes-glass-on]:has([data-overlay-surface]) [data-persistent-terminal] {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 ${both(`[role='dialog'][class*='left-1/2'] [data-slot='command'], [role='dialog'][aria-label='Command palette'] [data-slot='command']`)} {
   background: transparent !important;
@@ -1045,7 +1108,7 @@ function AppearanceCard() {
   ] : glassOn ? [
     'Glass is on: Windows draws the real acrylic behind the window.',
     'Presets change how deep the tint is: Acrylic, Frosted, Sanded, Expressive.',
-    'While Ctrl+K is open the app behind it blurs; menus get a denser glass. The terminal is one solid panel in the theme colour.'
+    'Ctrl+K and full-page cards (Settings, Scheduled jobs) show the real acrylic; menus get a denser glass. The terminal is one solid panel in the theme colour.'
   ] : [
     'Pick the Windows Acrylic theme (or turn on Every theme to tint any theme).',
     'For real acrylic: Settings → Appearance → Window Translucency → Glass (the Glass settings button opens Settings). Acrylic never changes that setting for you.',
