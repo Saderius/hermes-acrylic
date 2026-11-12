@@ -1,5 +1,7 @@
 # Acrylic
 
+![Acrylic for Hermes Agent](docs/banner.png)
+
 Acrylic glass for Hermes Desktop: a frosted, see-through theme with four presets. Tested mostly on Windows 11, where it sits on the system's real acrylic blur. Elsewhere it shows a CSS stand-in.
 
 Plugin only: no build, no native code, no Hermes patches. Everything is CSS plus a small Settings card, through the plugin SDK.
