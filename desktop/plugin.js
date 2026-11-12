@@ -613,7 +613,11 @@ ${both(`[data-terminal]`)} {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
-  inset: 4px 6px 6px 6px !important;
+  inset: 6px !important;
+  /* Hermes pads the terminal 0 on top and 8px elsewhere and keeps ~14px on the
+     right for the scrollbar; even padding plus the centred text area below
+     gives the outline the same gap on every side. */
+  padding: 15px 8px !important;
   contain: none !important;
   isolation: auto !important;
   -webkit-backdrop-filter: none !important;
@@ -629,6 +633,12 @@ ${both(`[data-terminal]`)} {
    pane renders outside the app shell, so it is named too. */
 [data-contrib-shell], [data-persistent-terminal] {
   --ui-terminal-surface-background: transparent !important;
+}
+${both(`[data-terminal] .xterm`)} {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
 }
 ${both(`[data-terminal] .xterm-screen`)} {
   outline: 1px solid var(--layer-stroke) !important;
