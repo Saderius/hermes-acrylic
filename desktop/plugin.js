@@ -625,8 +625,9 @@ ${both(`[data-terminal]`)} {
 }
 /* Hermes reads this token at <body> level for the terminal's text area (kept
    solid: its fast renderer cannot be see-through) and inside the app shell for
-   the pane, frame and tab strip, which keep the window material. */
-[data-contrib-shell] {
+   the pane, frame and tab strip, which keep the window material. The terminal
+   pane renders outside the app shell, so it is named too. */
+[data-contrib-shell], [data-persistent-terminal] {
   --ui-terminal-surface-background: transparent !important;
 }
 ${both(`[data-terminal] .xterm-screen`)} {
