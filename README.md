@@ -9,7 +9,7 @@ Plugin only: no build, no native code, no Hermes patches. Everything is CSS plus
 ## What you get
 
 - **The Windows Acrylic theme.** Pick it in Settings → Appearance (or Ctrl+K → **Apply Windows Acrylic Theme**). The look applies only while the theme is selected.
-- **Four presets:** **Acrylic** (lightest tint), **Frosted** (deeper tint, more blur), **Sanded** (Frosted with a fine grain) and **Expressive** (deepest tint). Pick one in the Acrylic card or with Ctrl+K → **Acrylic preset: …**.
+- **Four presets:** **Acrylic** (the default: a light tint in light mode, a deep one in dark mode), **Frosted** (a medium tint, more blur), **Sanded** (Frosted with a fine grain) and **Expressive** (a deep tint in both modes). Pick one in the Acrylic card or with Ctrl+K → **Acrylic preset: …**.
 - **Every theme (optional).** Off by default. Turn it on in the Acrylic card or the status-bar chip and the same glass tints whatever theme you use.
 - **The Acrylic card** in Settings → Appearance: the theme button, the Every theme switch, the presets, a **Glass settings** button that opens Settings → Appearance, and what to expect on your system.
 - **A status-bar chip** showing the current state: `◇ acrylic`, `(no glass)`, `(css)` or `off`.
@@ -57,6 +57,8 @@ These need hooks Hermes does not offer to plugins yet:
 - **A see-through terminal.** The terminal renderer is opaque. Asked for in [NousResearch/hermes-agent#154464](https://github.com/NousResearch/hermes-agent/issues/154464).
 - **Real acrylic behind menus.** In a see-through window a CSS blur only sees the page, never the desktop, so menus use a denser fill instead. A stable hook for this is asked for in [NousResearch/hermes-agent#154465](https://github.com/NousResearch/hermes-agent/issues/154465).
 - **Turning on Glass for you.** The Glass setting is not open to plugins, so Acrylic points you to it. Tracked in [NousResearch/hermes-agent#121896](https://github.com/NousResearch/hermes-agent/issues/121896).
+
+How the layers, the surfaces and the cut-outs work, and how to test them: [docs/how-it-works.md](docs/how-it-works.md).
 
 To remove it, disable the plugin under Capabilities → Plugins; Hermes falls back to its own theme.
 
