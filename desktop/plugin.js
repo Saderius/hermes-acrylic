@@ -178,7 +178,7 @@ const CSS = `
   --ui-chat-surface-background: transparent !important;
   --ui-editor-surface-background: transparent !important;
   --ui-sidebar-surface-background: transparent !important;
-  --ui-terminal-surface-background: transparent !important;
+  --ui-terminal-surface-background: var(--theme-background-seed, #202020) !important;
   --dt-background: transparent !important;
   --background: transparent !important;
   --dt-sidebar-bg: transparent !important;
@@ -217,6 +217,10 @@ ${both(`[data-glass-opaque]`)} {
 /* Settings & OverlayView Modal Cards ([data-overlay-surface] / [data-glass-raised]):
    1. Override styles.css:730's 94%-opaque --ui-*-surface-background rules on [data-glass-raised].
    2. Give [data-glass-raised] a translucent Acrylic tint (--acrylic-overlay-card) + noise grain. */
+${underGlass(`[data-overlay-surface]`)} {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
 ${both(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
   --ui-chat-surface-background: transparent !important;
   --ui-sidebar-surface-background: var(--acrylic-sidebar-tint) !important;
@@ -232,8 +236,8 @@ ${both(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
   box-shadow: var(--layer-hi), 0 16px 48px rgba(0, 0, 0, 0.55) !important;
 }
 ${underGlass(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
-  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
-  backdrop-filter: blur(24px) saturate(1.3) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 ${noGlass(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
@@ -377,8 +381,8 @@ ${both(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [dat
   filter: none !important;
 }
 ${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper], [data-slot='composer-completion-drawer']`)} {
-  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
-  backdrop-filter: blur(24px) saturate(1.3) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 ${noGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper], [data-slot='composer-completion-drawer']`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
@@ -397,6 +401,8 @@ ${both(`[data-slot='statusbar'] [data-slot='dropdown-menu-content']`)} {
 ${both(`[data-acrylic-flyout], .hsj-detail`)} {
   background-color: var(--acrylic-flyout) !important;
   background-image: var(--acrylic-flyout-grain) !important;
+}
+${noGlass(`[data-acrylic-flyout], .hsj-detail`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
   backdrop-filter: blur(24px) saturate(1.3) !important;
 }
@@ -494,8 +500,8 @@ ${both(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .gr
   filter: none !important;
 }
 ${underGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface, [data-slot='composer-dock'] [class*='backdrop-blur']`)} {
-  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
-  backdrop-filter: blur(24px) saturate(1.3) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 ${noGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
@@ -553,9 +559,22 @@ ${both(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command 
   animation: none !important;
   filter: none !important;
 }
-${both(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']`)} {
+${noGlass(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
   backdrop-filter: blur(24px) saturate(1.3) !important;
+}
+/* Under Glass a CSS blur only sees the page, never the Windows material, so
+   floating menus carry a denser fill instead, and while Ctrl+K is open the app
+   behind it is blurred so Ctrl+K itself stays clear glass. */
+${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-radix-popper-content-wrapper] > [data-side], [data-slot='composer-completion-drawer'], [data-acrylic-flyout], .hsj-detail`)} {
+  background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 90%, transparent) !important;
+}
+${underGlass(`[data-contrib-shell]`)} {
+  transition: filter 140ms ease-out;
+}
+:root[data-hermes-glass]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) [data-contrib-shell],
+:root[data-hermes-glass-on]:has([role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']) [data-contrib-shell] {
+  filter: blur(16px) saturate(1.1) !important;
 }
 ${both(`[role='dialog'][class*='left-1/2'] [data-slot='command'], [role='dialog'][aria-label='Command palette'] [data-slot='command']`)} {
   background: transparent !important;
@@ -591,7 +610,7 @@ ${both(`[data-terminal-slot], [data-persistent-terminal]`)} {
   backdrop-filter: none !important;
 }
 ${both(`[data-terminal]`)} {
-  background: var(--control-fill) !important;
+  background: var(--ui-terminal-surface-background) !important;
   border: 1px solid var(--layer-stroke) !important;
   border-radius: 8px !important;
   inset: 4px 6px 6px 6px !important;
@@ -602,7 +621,7 @@ ${both(`[data-terminal]`)} {
 }
 :root,
 :root.dark {
-  --ui-terminal-surface-background: transparent !important;
+  --ui-terminal-surface-background: var(--theme-background-seed, #202020) !important;
 }
 ${both(`[data-suppress-pane-reveal]`)} {
   background-color: transparent !important;
