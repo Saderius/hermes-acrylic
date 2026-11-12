@@ -637,6 +637,9 @@ ${both(`.xterm, .xterm-viewport, .xterm-scrollable-element, .xterm-screen, .xter
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
+${both(`.xterm, .xterm-viewport, .xterm-screen, .xterm-rows, .xterm-rows > div, .xterm-rows span, [data-terminal], [data-interactive-terminal]`)} {
+  font-family: 'CascadiaCode Nerd Font', 'Cascadia Code Nerd Font', 'CaskaydiaCove Nerd Font', 'Cascadia Code', monospace !important;
+}
 ${both(`.xterm-screen canvas[data-hermes-acrylic-lost], .xterm-screen:has(.xterm-rows) canvas`)} {
   display: none !important;
 }
@@ -748,7 +751,7 @@ const THEME = {
   darkColors: DARK,
   typography: {
     fontSans: "'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif",
-    fontMono: "'Cascadia Code', 'Cascadia Mono', Consolas, ui-monospace, monospace"
+    fontMono: "'CascadiaCode Nerd Font', 'Cascadia Code Nerd Font', 'Cascadia Code', 'Cascadia Mono', Consolas, ui-monospace, monospace"
   },
   customCSS: '/* Universal Acrylic is active via #hermes-acrylic-global-css */'
 }

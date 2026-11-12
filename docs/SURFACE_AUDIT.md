@@ -101,6 +101,25 @@ Window transparency is fixed when the window is created, in the main process. Th
 
 **WSL:** WSLg runs its own compositor (Weston) and remotes each window to Windows as a plain surface. Neither a Linux compositor blur nor DWM acrylic applies behind it, so WSL on this machine cannot be the test bed for path 1. A real Linux desktop with KDE or Hyprland is needed.
 
+**Linux test results (2026-11-10 and 11, one tester machine):** Debian 13, Xfce, X11 on a virtual display, picom, no GPU.
+
+Proven there:
+- The opt-in makes the chat window transparent, with no black fill, through resize, maximize, fullscreen, minimize, focus loss and a second window.
+- Without the opt-in nothing changes. Turning Glass on after launch stays opaque until restart.
+- The first-launch fix works: on a fresh profile the sidebar is see-through at once.
+- The plugin takes the Glass path (chip reads `acrylic`). Menus, tooltips, the palette and Settings are tinted plates with readable text in light and dark themes.
+
+Not proven there:
+- **Blur.** The desktop stayed sharp behind the window with two picom blur setups. Needs a GPU desktop with KWin or Hyprland.
+
+Parked, needs the same GPU desktop:
+- **A right-click menu over the composer shows the composer and the usage-stats bar through it.** Measured on that machine, the cutout is applied and hit-testing finds nothing under the menu, so the page and the pixels disagree. Not reproduced on Windows in three tries (normal, with a stand-in stats bar, with GPU rendering off). Most likely how that GPU-less virtual display draws a transparent window; not proven.
+- **Settings is low-contrast when nothing blurs behind it.** A heavier tint for compositors that do not blur is not built.
+
+Test-setup note: launching Hermes with `HERMES_DESKTOP_USER_DATA_DIR` moves the plugin folder to `<that dir>/hermes-home/desktop-plugins`. A plugin left in `~/.hermes/desktop-plugins` is then not loaded.
+
+Checklist correction: Clear mode is a whole-window fade, not "opaque". A window in Clear with a non-zero tint is see-through by design.
+
 ## 6. Presets (the "glass family")
 
 Today: Acrylic, Frosted, Sanded, Expressive. They only retune `--acrylic-chrome-keep`, blur and grain.
