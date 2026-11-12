@@ -1,19 +1,17 @@
 // Hermes Acrylic — Windows 11 Acrylic look for Hermes Desktop.
-// Disk plugin: plain ESM, no build, no JSX. Real acrylic is the host Glass
-// path (Electron setBackgroundMaterial('acrylic') on Win11 22H2+). Linux has
-// no Glass row; the no-Glass branch is a CSS fallback over Chat Backdrop.
-// The plugin never calls DWM directly: it syncs the host's own translucency
-// store (hermes.desktop.translucency.v2) and toggles Electron's background
-// material through window.hermesDesktop.setTranslucency, which is what
-// actually drives DWM.
+// Disk plugin: plain ESM, no build, no JSX. Real acrylic is Hermes' own Glass
+// setting (Settings → Appearance → Window Translucency → Glass), which the user
+// turns on; this plugin never changes it. The look is CSS: the theme's
+// customCSS while Windows Acrylic is selected, or the same CSS for every theme
+// when the user turns on "Every theme". Without Glass (and on Linux) the CSS is
+// a stand-in over Chat Backdrop.
 //
-// Universal Theme Acrylic Engine:
-// Tints Windows 11 DWM Acrylic with the active theme's seed colors via color-mix:
+// Theme-agnostic tints: color-mix over the active theme seeds
 // --theme-background-seed, --theme-sidebar-seed, --theme-card-seed,
-// --theme-elevated-seed, --theme-bubble-seed, and --theme-foreground.
+// --theme-elevated-seed, --theme-bubble-seed and --theme-foreground.
 import {
   APPEARANCE_AREAS, Button, PALETTE_AREA, STATUSBAR_AREAS, THEMES_AREA,
-  haptic, host, requestTheme, useTheme, writeClipboardText
+  haptic, host, requestTheme, useTheme
 } from '@hermes/plugin-sdk'
 import { useEffect, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
@@ -217,14 +215,8 @@ ${both(`[data-glass-opaque]`)} {
 }
 
 /* Settings & OverlayView Modal Cards ([data-overlay-surface] / [data-glass-raised]):
-   1. Clear backdrop-blur-[0.125rem] on [data-overlay-surface] under Glass so DWM Acrylic is unobstructed.
-   2. Override styles.css:730's 94%-opaque --ui-*-surface-background rules on [data-glass-raised].
-   3. Give [data-glass-raised] a translucent Acrylic tint (--acrylic-overlay-card) + noise grain while
-      installFlyoutCutoutMask() cuts out [data-contrib-shell] and [data-persistent-terminal] underneath it! */
-${underGlass(`[data-overlay-surface]`)} {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
+   1. Override styles.css:730's 94%-opaque --ui-*-surface-background rules on [data-glass-raised].
+   2. Give [data-glass-raised] a translucent Acrylic tint (--acrylic-overlay-card) + noise grain. */
 ${both(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
   --ui-chat-surface-background: transparent !important;
   --ui-sidebar-surface-background: var(--acrylic-sidebar-tint) !important;
@@ -240,8 +232,8 @@ ${both(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
   box-shadow: var(--layer-hi), 0 16px 48px rgba(0, 0, 0, 0.55) !important;
 }
 ${underGlass(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
+  backdrop-filter: blur(24px) saturate(1.3) !important;
 }
 ${noGlass(`[data-glass-raised], [data-overlay-surface] [data-glass-raised]`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
@@ -373,11 +365,8 @@ ${both(`[data-pane-host], [data-tree-group], [data-project-tree]`)} {
 }
 
 /* Tier 3 — Floating Portal Surfaces & Flyouts:
-   Packshot Cutout Architecture: under live Glass, the underlying in-page DOM
-   is physically cut out by installFlyoutCutoutMask()'s clip-path: path(evenodd, ...),
-   exposing 100% pure Windows 11 DWM Acrylic without any Chromium backdrop-filter conflict!
-   Under no-Glass, CSS backdrop-filter blurs the Chat Backdrop fallback. */
-${both(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side]`)} {
+   Under live Glass and no-Glass, CSS backdrop-filter blurs the surface underneath. */
+${both(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-slot='composer-completion-drawer']`)} {
   background-color: var(--acrylic-flyout) !important;
   background-image: var(--acrylic-flyout-grain) !important;
   color: var(--acrylic-popover-fg);
@@ -387,11 +376,11 @@ ${both(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [dat
   animation: none !important;
   filter: none !important;
 }
-${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper]`)} {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
+${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper], [data-slot='composer-completion-drawer']`)} {
+  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
+  backdrop-filter: blur(24px) saturate(1.3) !important;
 }
-${noGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper]`)} {
+${noGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper], [data-slot='composer-completion-drawer']`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
   backdrop-filter: blur(24px) saturate(1.3) !important;
 }
@@ -404,17 +393,15 @@ ${both(`[data-slot='statusbar'] [data-slot='dropdown-menu-content']`)} {
   color: var(--acrylic-popover-fg);
 }
 /* Opt-in hook for other plugins: mark a floating surface with data-acrylic-flyout
-   and it gets the Tier 3 fill plus a cutout hole. Triage's detail card is listed by class. */
+   and it gets the Tier 3 fill and blurs the page behind it. Triage's detail card is listed by class. */
 ${both(`[data-acrylic-flyout], .hsj-detail`)} {
   background-color: var(--acrylic-flyout) !important;
   background-image: var(--acrylic-flyout-grain) !important;
-}
-${underGlass(`[data-acrylic-flyout], .hsj-detail`)} {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
+  backdrop-filter: blur(24px) saturate(1.3) !important;
 }
 
-/* Tooltips: a small Tier 3 plate. installFlyoutCutoutMask() cuts the hole under it. */
+/* Tooltips: a small Tier 3 plate. */
 ${both(`[data-radix-popper-content-wrapper] > [data-slot='tooltip-content'][data-side]`)} {
   background-color: var(--acrylic-flyout) !important;
   background-image: var(--acrylic-flyout-grain) !important;
@@ -494,10 +481,8 @@ ${both(`[data-slot='pane-header']`)} {
   background-image: none !important;
 }
 
-/* Composer dock, root & surface (Searchbox-grade Tier 3 Acrylic + Cutout Mask):
-   [data-slot='composer-surface'] (.group/composer-surface) cuts a rounded-rect hole out of
-   [data-slot='composer-bounds'] via installFlyoutCutoutMask() so scrolling chat messages
-   never bleed through and pure Windows 11 DWM Acrylic shines underneath. */
+/* Composer dock, root & surface (Searchbox-grade Tier 3 Acrylic):
+   Pure Windows 11 DWM Acrylic shines underneath. */
 ${both(`[data-slot='composer-root'], [data-slot='composer-dock'], [data-slot='composer-root'][data-thread-scrolled-up], [data-slot='composer-dock']:is(:hover, :focus-within) [data-slot='composer-root'][data-thread-scrolled-up]`)} {
   --composer-fill: var(--acrylic-flyout) !important;
 }
@@ -509,8 +494,8 @@ ${both(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .gr
   filter: none !important;
 }
 ${underGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface, [data-slot='composer-dock'] [class*='backdrop-blur']`)} {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
+  backdrop-filter: blur(24px) saturate(1.3) !important;
 }
 ${noGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
@@ -557,8 +542,7 @@ ${both(`[class*='bg-foreground'][class*='text-background'], button.bg-foreground
 
 /* ⌘K Command Palette HUD:
    Backdrop Root fix: styled directly on outer <DialogPrimitive.Content> ([role='dialog'][class*='left-1/2'])
-   Under live Glass, the underlying in-page shell is cut out with clip-path: path(evenodd, ...),
-   exposing pure DWM Acrylic, so backdrop-filter is set to none !important to avoid Chromium dark plate artifacts. */
+   It blurs the page behind it on every path, so chat text never reads through it. */
 ${both(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']`)} {
   background-color: var(--acrylic-flyout) !important;
   background-image: var(--acrylic-flyout-grain) !important;
@@ -569,11 +553,7 @@ ${both(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command 
   animation: none !important;
   filter: none !important;
 }
-${underGlass(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']`)} {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-${noGlass(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']`)} {
+${both(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Command palette']`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
   backdrop-filter: blur(24px) saturate(1.3) !important;
 }
@@ -639,12 +619,6 @@ ${both(`.xterm, .xterm-viewport, .xterm-scrollable-element, .xterm-screen, .xter
 }
 ${both(`.xterm, .xterm-viewport, .xterm-screen, .xterm-rows, .xterm-rows > div, .xterm-rows span, [data-terminal], [data-interactive-terminal]`)} {
   font-family: 'CascadiaCode Nerd Font', 'Cascadia Code Nerd Font', 'CaskaydiaCove Nerd Font', 'Cascadia Code', monospace !important;
-}
-${both(`.xterm-screen canvas[data-hermes-acrylic-lost], .xterm-screen:has(.xterm-rows) canvas`)} {
-  display: none !important;
-}
-${both(`.xterm-screen canvas`)} {
-  display: none !important;
 }
 
 /* Chat Backdrop under Glass:
@@ -753,7 +727,7 @@ const THEME = {
     fontSans: "'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif",
     fontMono: "'CascadiaCode Nerd Font', 'Cascadia Code Nerd Font', 'Cascadia Code', 'Cascadia Mono', Consolas, ui-monospace, monospace"
   },
-  customCSS: '/* Universal Acrylic is active via #hermes-acrylic-global-css */'
+  customCSS: CSS
 }
 
 const PRESET_IDS = ['acrylic', 'frosted', 'sanded', 'expressive']
@@ -761,14 +735,6 @@ const PRESET_LABELS = { acrylic: 'Acrylic', frosted: 'Frosted', sanded: 'Sanded'
 const PRESET_KEY = 'hermes-acrylic-preset'
 const PRESET_ATTR = 'data-hermes-acrylic-preset'
 const PRESET_EVENT = 'hermes-acrylic-preset'
-
-// Host translucency store — the same key the desktop app listens on.
-const TRANSLUCENCY_KEY = 'hermes.desktop.translucency.v2'
-// Backdrop material: under-window = live Acrylic, titlebar = Smooth Mica.
-const MATERIAL_KEY = 'hermes-acrylic-material'
-const MATERIAL_EVENT = 'hermes-acrylic-material'
-const MATERIAL_IDS = ['under-window', 'titlebar']
-const MATERIAL_LABELS = { 'under-window': 'Live Acrylic', titlebar: 'Smooth Mica' }
 
 // ---------------------------------------------------------------------------
 // Universal Acrylic State & Style Manager
@@ -784,7 +750,7 @@ function readAcrylicEnabled() {
     if (document.documentElement.hasAttribute('data-hermes-acrylic-disabled')) return false
     if (document.documentElement.hasAttribute(ENABLED_ATTR)) return true
   }
-  return true
+  return false
 }
 
 function installGlobalAcrylicStyle() {
@@ -828,16 +794,12 @@ function applyAcrylicEnabled(next) {
   installGlobalAcrylicStyle()
   if (enabled) {
     setBackdropEnabled(true)
-    if (!isLinuxPlatform()) {
-      syncHostTranslucency({ material: readDragMaterial(), scope: 'window' })
-    }
   }
-  scanTerminalCanvases()
-  syncFlyoutCutoutMask()
   syncWindowFocusState()
   return enabled
 }
 
+let pluginCtx = null
 let focusTrackerInstalled = false
 let windowFocusHandler = null
 let windowBlurHandler = null
@@ -845,10 +807,8 @@ let visibilityChangeHandler = null
 
 function syncWindowFocusState() {
   if (typeof document === 'undefined' || !document.documentElement) return
-  if (!readAcrylicEnabled()) {
-    document.documentElement.removeAttribute(UNFOCUSED_ATTR)
-    return
-  }
+  // Tracked always: the flag only matters to Acrylic's own CSS, which is present
+  // only while the theme is selected or "Every theme" is on.
   const hasFocus = typeof document.hasFocus === 'function' ? document.hasFocus() : true
   if (!hasFocus) {
     document.documentElement.setAttribute(UNFOCUSED_ATTR, '')
@@ -870,7 +830,7 @@ function installWindowFocusTracker() {
     }
   }
   windowBlurHandler = () => {
-    if (typeof document !== 'undefined' && document.documentElement && readAcrylicEnabled()) {
+    if (typeof document !== 'undefined' && document.documentElement) {
       document.documentElement.setAttribute(UNFOCUSED_ATTR, '')
     }
   }
@@ -900,7 +860,6 @@ function disposeFocusTracker() {
 
 function dispose() {
   disposeFocusTracker()
-  disposeCutoutMask()
 }
 
 function toggleAcrylicEnabled(next) {
@@ -910,8 +869,8 @@ function toggleAcrylicEnabled(next) {
   host.notify({
     kind: 'info',
     message: target
-      ? 'Universal Acrylic enabled for all themes.'
-      : 'Universal Acrylic disabled.'
+      ? 'Acrylic now tints every theme.'
+      : 'Acrylic every-theme mode off. The Windows Acrylic theme still works.'
   })
   return target
 }
@@ -953,8 +912,6 @@ function applyPreset(name) {
 
 function selectPreset(name) {
   applyPreset(name)
-  // Keep the host sync in lockstep with the preset.
-  if (!isLinuxPlatform()) syncHostTranslucency({ material: readDragMaterial(), scope: 'window' })
 }
 
 function usePreset() {
@@ -968,21 +925,21 @@ function usePreset() {
   return preset
 }
 
-// "Linux" here means Linux WITHOUT host Glass: the CSS-fallback path. A Hermes
-// launched with opt-in Linux Glass (HERMES_DESKTOP_LINUX_GLASS=1, see
-// patches/hermes-linux-glass-optin.patch) reports glassSupported and takes the
-// same Glass path as Windows, with the compositor supplying the blur.
+// "Linux" here means Linux WITHOUT host Glass: the CSS-fallback path. A Hermes with Glass on (Windows, or opt-in Linux Glass) takes the Glass path.
 function isLinuxPlatform() {
   const ua = typeof navigator === 'undefined' ? '' : (navigator.userAgent || '')
-  if (!/Linux/i.test(ua) || /Android/i.test(ua)) return false
-  const hostGlass = typeof window !== 'undefined' && window.hermesDesktop && window.hermesDesktop.glassSupported === true
-  return !hostGlass
+  return /Linux/i.test(ua) && !/Android/i.test(ua) && !readGlassOn()
 }
 
 function readGlassOn() {
   if (typeof document === 'undefined') return false
   const root = document.documentElement
   return root.hasAttribute('data-hermes-glass') || root.hasAttribute('data-hermes-glass-on')
+}
+
+function openAppearanceSettings() {
+  const r = pluginCtx && typeof pluginCtx.runAction === 'function' ? pluginCtx.runAction('nav.settings') : null
+  if (!r || r.ok === false) host.notify({ kind: 'info', message: 'Open Settings → Appearance → Window Translucency and pick Glass.' })
 }
 
 function setBackdropEnabled(on) {
@@ -995,630 +952,27 @@ function setBackdropEnabled(on) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Host translucency sync (DWM material). Hermes stores its TranslucencyBook in
-// localStorage under 'hermes.desktop.translucency.v2' and listens for a
-// 'storage' event on that key (apps/desktop/src/store/translucency.ts). Writing
-// BOTH light and dark slots stops the "tuned Dark, Light falls back to
-// scope:'sidebar' / intensity 0 and paints solid white" bug.
-// ---------------------------------------------------------------------------
-
-function readDragMaterial() {
-  try {
-    const saved = localStorage.getItem(MATERIAL_KEY)
-    if (MATERIAL_IDS.includes(saved)) return saved
-  } catch { /* ignore */ }
-  return 'under-window'
-}
-
-function writeDragMaterial(material) {
-  const m = MATERIAL_IDS.includes(material) ? material : 'under-window'
-  try { localStorage.setItem(MATERIAL_KEY, m) } catch { /* ignore */ }
-  if (typeof document !== 'undefined') {
-    document.dispatchEvent(new CustomEvent(MATERIAL_EVENT, { detail: m }))
-  }
-  return m
-}
-
-// Preserve a user-tuned non-zero Glass intensity if the caller didn't set one
-// (upgrade legacy default 29 or old Packshot 45 to 85 so native Win11 acrylic shines through).
-function pickHostIntensity(book, fallback) {
-  const slots = [book && book.base, book && book.light, book && book.dark]
-  for (const slot of slots) {
-    if (slot && typeof slot.intensity === 'number' && slot.intensity > 0 && slot.intensity !== 29 && slot.intensity !== 45) {
-      return slot.intensity
-    }
-  }
-  return fallback
-}
-
-// Default Glass intensity 85 (keep 85%). Native Win11 acrylic already blurs +
-// tints the window via DWM; a high host keep% lets Hermes's live acrylic match
-// native Windows 11 acrylic swatches 1:1. An explicit user-tuned value wins.
-function syncHostTranslucency({ material = 'under-window', scope = 'window', intensity, fade = 0 } = {}) {
-  if (isLinuxPlatform()) return false
-  const mat = MATERIAL_IDS.includes(material) ? material : 'under-window'
-  const sc = scope === 'sidebar' ? 'sidebar' : 'window'
-
-  let book = {}
-  try {
-    const raw = localStorage.getItem(TRANSLUCENCY_KEY)
-    if (raw) book = JSON.parse(raw) || {}
-  } catch { book = {} }
-
-  const resolved = (typeof intensity === 'number' && intensity > 0) ? intensity : pickHostIntensity(book, 85)
-  const slot = { intensity: resolved, fade, material: mat, scope: sc }
-  const nextBook = { ...book, mode: 'glass', base: { ...slot }, light: { ...slot }, dark: { ...slot } }
-
-  let json = ''
-  try {
-    json = JSON.stringify(nextBook)
-    localStorage.setItem(TRANSLUCENCY_KEY, json)
-  } catch { /* ignore */ }
-
-  try {
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: TRANSLUCENCY_KEY,
-      newValue: json
-    }))
-  } catch { /* ignore */ }
-
-  // Fire the same IPC the host store fires so Electron main applies DWM
-  // material in THIS window without waiting for the event round-trip.
-  try {
-    window.hermesDesktop?.setTranslucency?.({ mode: 'glass', intensity: resolved, fade, material: mat, scope: sc })
-  } catch { /* ignore */ }
-
-  return true
-}
-
-function setDragMaterial(material) {
-  const m = writeDragMaterial(material)
-  syncHostTranslucency({ material: m, scope: 'window' })
-  host.notify({
-    kind: 'info',
-    message: m === 'titlebar'
-      ? 'Backdrop: Smooth Mica (titlebar). DWM stops re-blurring while you drag the window.'
-      : 'Backdrop: Live Acrylic (under-window). Live desktop blur, higher drag cost.'
-  })
-  return m
-}
-
-// Windows 11 DWM quirk: setBackgroundMaterial('acrylic') sometimes drops on
-// first paint until toggled off→on. Bounce to 'clear' then re-apply.
-function wakeWindowsAcrylic() {
-  if (isLinuxPlatform()) {
-    host.notify({ kind: 'info', message: 'Windows DWM re-sync is Windows-only. Linux uses the CSS fallback.' })
-    return
-  }
-  try {
-    window.hermesDesktop?.setTranslucency?.({ mode: 'clear', intensity: 0, fade: 0, material: 'under-window', scope: 'window' })
-  } catch { /* ignore */ }
-  if (typeof setTimeout !== 'function') return
-  setTimeout(() => {
-    syncHostTranslucency({ material: readDragMaterial(), scope: 'window' })
-    host.notify({ kind: 'info', message: 'Windows Acrylic re-synced with DWM.' })
-  }, 60)
-}
-
-// Glass often lands after the theme. Don't mount filler-bg0 during that gap
-// on Windows — the blur runs until the attribute appears, which was the spike.
-let fallbackTimer = 0
-function cancelFallbackBackdrop() {
-  if (!fallbackTimer) return
-  clearTimeout(fallbackTimer)
-  fallbackTimer = 0
-}
-function scheduleFallbackBackdrop() {
-  cancelFallbackBackdrop()
-  fallbackTimer = setTimeout(() => {
-    fallbackTimer = 0
-    if (!readGlassOn()) setBackdropEnabled(true)
-  }, 800)
-}
-
-// One-shot and ongoing: under Acrylic, backdrop.v1 is kept mounted so the
-// unfocused reveal can paint instantly (while focused under Glass it is
-// completely hidden with display: none !important). If Acrylic is disabled
-// and Glass is on, keep backdrop.v1 false.
-function installGlassBackdropLock() {
-  if (installGlassBackdropLock.done || typeof document === 'undefined') return
-  installGlassBackdropLock.done = true
-  const lock = () => {
-    if (readAcrylicEnabled()) {
-      setBackdropEnabled(true)
-      return
-    }
-    if (!readGlassOn()) return
-    cancelFallbackBackdrop()
-    setBackdropEnabled(false)
-  }
-  lock()
-  const mo = new MutationObserver(lock)
-  mo.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-hermes-glass', 'data-hermes-glass-on']
-  })
-}
-
-// ---------------------------------------------------------------------------
-// True transparent terminal: force xterm off its opaque WebGL <canvas> renderer
-// and onto the native HTML DOM renderer (.xterm-rows, default cell alpha = 0).
-//
-// WebGL canvas fails in 0ms on new terminals (HTMLCanvasElement.prototype.getContext
-// returns null for WebGL in .xterm-screen), and existing terminals lose context
-// in 0ms via setTimeout interception in loseTerminalCanvasContext.
-// Runs across ALL themes whenever Universal Acrylic is enabled!
-// ---------------------------------------------------------------------------
-function installTerminalCanvasInterceptor() {
-  if (typeof HTMLCanvasElement === 'undefined') return
-  if (HTMLCanvasElement.prototype._hermesAcrylicPatched) return
-
-  const origGetContext = HTMLCanvasElement.prototype.getContext
-  HTMLCanvasElement.prototype._origGetContext = origGetContext
-  HTMLCanvasElement.prototype.getContext = function (type, ...args) {
-    if (
-      (type === 'webgl2' || type === 'webgl' || type === 'experimental-webgl') &&
-      readAcrylicEnabled() &&
-      (this.classList?.contains('xterm-screen-canvas') || this.closest?.('.xterm-screen') || this._inXtermScreen)
-    ) {
-      // Disallow WebGL for xterm canvases so @xterm/addon-webgl throws immediately on new WebglAddon()
-      // and xterm falls back to the native transparent DOM renderer (.xterm-rows) in 0ms!
-      return null
-    }
-    return origGetContext.call(this, type, ...args)
-  }
-  HTMLCanvasElement.prototype._hermesAcrylicPatched = true
-}
-
-function loseTerminalCanvasContext(canvas) {
-  for (const type of ['webgl2', 'webgl', 'experimental-webgl']) {
-    try {
-      const origFn = (typeof HTMLCanvasElement !== 'undefined' && HTMLCanvasElement.prototype._origGetContext) || canvas.getContext
-      const ctx = origFn.call(canvas, type)
-      const ext = ctx && typeof ctx.getExtension === 'function' ? ctx.getExtension('WEBGL_lose_context') : null
-      if (ext && typeof ext.loseContext === 'function') {
-        ext.loseContext()
-        break
-      }
-    } catch {
-      // getContext throws when the canvas is already bound to another type.
-    }
-  }
-
-  // Intercept setTimeout(..., 3000) inside webglcontextlost event listener
-  // so WebglRenderer.ts:116 fires onContextLoss in 0ms instead of waiting 3000ms!
-  const win = (canvas.ownerDocument && canvas.ownerDocument.defaultView) || (typeof window !== 'undefined' ? window : null)
-  const origSetTimeout = (win && typeof win.setTimeout === 'function') ? win.setTimeout : (typeof setTimeout === 'function' ? setTimeout : null)
-  let patched = false
-  if (win && origSetTimeout) {
-    win.setTimeout = function (fn, delay, ...args) {
-      if (delay === 3000 || delay >= 1000) {
-        return origSetTimeout(fn, 0, ...args)
-      }
-      return origSetTimeout(fn, delay, ...args)
-    }
-    patched = true
-  }
-
-  try {
-    canvas.dispatchEvent(new Event('webglcontextlost', { bubbles: false, cancelable: true }))
-  } catch {
-    // Some locked-down webviews reject synthetic events
-  } finally {
-    if (patched && win) {
-      win.setTimeout = origSetTimeout
-    }
-  }
-}
-
-function scanTerminalCanvases() {
-  if (typeof document === 'undefined') return 0
-  if (!readAcrylicEnabled()) return 0
-  const canvases = document.querySelectorAll('.xterm-screen canvas:not([data-hermes-acrylic-lost])')
-  let lost = 0
-  canvases.forEach(canvas => {
-    canvas.setAttribute('data-hermes-acrylic-lost', '')
-    loseTerminalCanvasContext(canvas)
-    lost += 1
-  })
-  return lost
-}
-
-function subtreeHasCanvas(node) {
-  if (!node || node.nodeType !== 1) return false
-  if (node.tagName === 'CANVAS') return true
-  return typeof node.querySelector === 'function' && node.querySelector('canvas') !== null
-}
-
-function installTerminalAcrylicDomRenderer() {
-  if (typeof document === 'undefined') return
-  if (installTerminalAcrylicDomRenderer.done) return
-  installTerminalAcrylicDomRenderer.done = true
-
-  installTerminalCanvasInterceptor()
-
-  const raf = typeof requestAnimationFrame === 'function'
-    ? requestAnimationFrame
-    : cb => setTimeout(cb, 16)
-  let frame = 0
-  const schedule = () => {
-    if (frame) return
-    frame = raf(() => {
-      frame = 0
-      scanTerminalCanvases()
-    })
-  }
-
-  const mo = new MutationObserver(records => {
-    for (const record of records) {
-      // Theme flip, Acrylic toggle, or Glass flip: rescan.
-      if (record.type === 'attributes') {
-        schedule()
-        return
-      }
-      // A new canvas is the only childList signal we care about.
-      for (const node of record.addedNodes || []) {
-        if (subtreeHasCanvas(node)) {
-          schedule()
-          return
-        }
-      }
-    }
-  })
-
-  const start = () => {
-    installTerminalCanvasInterceptor()
-    mo.observe(document.body, { childList: true, subtree: true })
-    mo.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-hermes-theme', 'data-hermes-acrylic-enabled', 'data-hermes-glass', 'data-hermes-glass-on']
-    })
-    schedule()
-  }
-
-  if (document.body) start()
-  else if (typeof document.addEventListener === 'function') document.addEventListener('DOMContentLoaded', start, { once: true })
-}
-
-// ---------------------------------------------------------------------------
-// Packshot Studio §5.4: clip-path: path(evenodd, ...) Flyout Cutout Mask
-// Cuts a rounded-rectangle hole in in-page DOM layers ([data-contrib-shell]
-// and [data-persistent-terminal]) directly underneath open flyouts and Ctrl+K,
-// exposing 100% pure live Windows 11 DWM Acrylic with zero text bleed-through!
-// ---------------------------------------------------------------------------
-const FLYOUT_CUTOUT_TARGET_SELECTOR = "[data-contrib-shell], [data-persistent-terminal], [data-slot='composer-bounds'], [data-slot='composer-surface'], [data-overlay-surface], [data-overlay-surface] [data-glass-raised], [data-glass-raised]"
-const FLYOUT_CUTOUT_SELECTOR = [
-  "[role='dialog'][class*='left-1/2']",
-  "[role='dialog'][aria-label='Command palette']",
-  "[data-slot='popover-content']",
-  "[data-slot='dropdown-menu-content']",
-  "[data-slot='dropdown-menu-sub-content']",
-  "[data-slot='context-menu-content']",
-  "[data-slot='context-menu-sub-content']",
-  "[data-slot='select-content']",
-  "[data-slot='dialog-content']",
-  "[data-slot='hover-card-content']",
-  "[data-slot='tooltip-content']",
-  "[data-acrylic-flyout]",
-  ".hsj-detail",
-  "[data-overlay-surface] [data-glass-raised]",
-  "[data-overlay-surface] > div > .absolute[class*='left-1/2'].top-0",
-  "[data-slot='composer-surface']",
-  "[data-slot='room-composer-surface']",
-  "[data-slot='composer-status-stack']"
-].join(', ')
-
-function roundedRectSubpath(x, y, w, h, r) {
-  const rx = Math.max(0, Math.min(r || 0, w / 2, h / 2))
-  const x0 = Math.round(x * 10) / 10
-  const y0 = Math.round(y * 10) / 10
-  const x1 = Math.round((x + w) * 10) / 10
-  const y1 = Math.round((y + h) * 10) / 10
-  if (rx <= 0.5) {
-    return `M ${x0} ${y0} H ${x1} V ${y1} H ${x0} Z`
-  }
-  return `M ${x0 + rx} ${y0} H ${x1 - rx} A ${rx} ${rx} 0 0 1 ${x1} ${y0 + rx} V ${y1 - rx} A ${rx} ${rx} 0 0 1 ${x1 - rx} ${y1} H ${x0 + rx} A ${rx} ${rx} 0 0 1 ${x0} ${y1 - rx} V ${y0 + rx} A ${rx} ${rx} 0 0 1 ${x0 + rx} ${y0} Z`
-}
-
-function isFlyoutVisible(el, win) {
-  if (!el || el.nodeType !== 1) return false
-  if (el.hidden || (typeof el.hasAttribute === 'function' && el.hasAttribute('hidden'))) return false
-  if (typeof el.getAttribute === 'function' && el.getAttribute('data-state') === 'closed') return false
-  const rect = typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null
-  if (!rect || rect.width < 16 || rect.height < 16) return false
-  const style = win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(el) : (typeof getComputedStyle === 'function' ? getComputedStyle(el) : null)
-  if (style) {
-    if (style.display === 'none' || style.visibility === 'hidden') return false
-    const op = Number(style.opacity)
-    if (!isNaN(op) && op <= 0.05) return false
-  }
-  return true
-}
-
-let cutoutObserver = null
-let cutoutResizeHandler = null
-let cutoutResizeObserver = null
-const observedComposerNodes = new Set()
-let cutoutMotionHandler = null
-let cutoutMotionFrame = 0
-
-// A "body layer" is a direct element child of <body>: the app root, Radix
-// portals, toast regions, other plugins' fixed overlays.
-function topLayerOf(el) {
-  if (typeof document === 'undefined' || !document.body) return null
-  let node = el
-  while (node && node.parentNode && node.parentNode !== document.body) node = node.parentNode
-  return node && node.parentNode === document.body ? node : null
-}
-
-function layerRank(layer, win) {
-  let z = 0
-  const style = layer && win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(layer) : null
-  if (style) {
-    const parsed = parseInt(style.zIndex, 10)
-    if (!isNaN(parsed)) z = parsed
-  }
-  const kids = document.body && document.body.children ? Array.from(document.body.children) : []
-  return { z, index: kids.indexOf(layer) }
-}
-
-// True when layer a paints above layer b.
-function layerAbove(a, b) {
-  return a.z > b.z || (a.z === b.z && a.index > b.index)
-}
-
-let cutoutSyncing = false
-function syncFlyoutCutoutMask() {
-  if (typeof document === 'undefined') return
-  if (cutoutSyncing) return
-  cutoutSyncing = true
-  try {
-    const rawTargets = document.querySelectorAll(FLYOUT_CUTOUT_TARGET_SELECTOR)
-    const targets = Array.from(rawTargets || []).filter((item, index, self) => self.indexOf(item) === index)
-    // Body layers that hold none of the listed targets (the app root holds them
-    // and is cut through them) are cut too, so portaled plugin UI never bleeds.
-    const bodyLayers = new Set()
-    const bodyKids = document.body && document.body.children ? Array.from(document.body.children) : []
-    for (const layer of bodyKids) {
-      if (!layer || layer.nodeType !== 1) continue
-      if (layer.tagName === 'SCRIPT' || layer.tagName === 'STYLE') continue
-      if (typeof layer.hasAttribute === 'function' && layer.hasAttribute('data-hermes-acrylic-xray')) continue
-      if (targets.indexOf(layer) !== -1) continue
-      if (typeof layer.contains === 'function' && targets.some(t => layer.contains(t))) continue
-      bodyLayers.add(layer)
-      targets.push(layer)
-    }
-    if (!targets.length) return
-    // One getComputedStyle per body layer per sync, not per layer pair.
-    const rankCache = new Map()
-    const rankOf = layer => {
-      if (!rankCache.has(layer)) rankCache.set(layer, layerRank(layer, win))
-      return rankCache.get(layer)
-    }
-
-    const clearAll = () => {
-      for (const target of targets) {
-        if (target.style && typeof target.style.removeProperty === 'function') {
-          target.style.removeProperty('clip-path')
-        }
-      }
-    }
-
-    if (!readAcrylicEnabled()) {
-      clearAll()
-      return
-    }
-
-    const candidates = document.querySelectorAll(FLYOUT_CUTOUT_SELECTOR)
-    const win = (typeof window !== 'undefined' ? window : null) || document.defaultView
-    const openFlyouts = []
-    for (const el of candidates) {
-      if (isFlyoutVisible(el, win)) {
-        openFlyouts.push(el)
-      }
-    }
-
-    if (!openFlyouts.length) {
-      clearAll()
-      return
-    }
-
-    for (const target of targets) {
-      if (!target || typeof target.getBoundingClientRect !== 'function') continue
-      const targetRect = target.getBoundingClientRect()
-      const isBodyLayer = bodyLayers.has(target)
-      if (!isBodyLayer && (targetRect.width <= 0 || targetRect.height <= 0)) continue
-      const targetRank = isBodyLayer ? rankOf(target) : null
-
-      const holes = []
-      for (const el of openFlyouts) {
-        if (el === target) continue
-        if (typeof target.contains === 'function' && target.contains(el)) continue
-        if (typeof el.contains === 'function' && el.contains(target)) continue
-        if (isBodyLayer) {
-          const elLayer = topLayerOf(el)
-          if (!elLayer || !layerAbove(rankOf(elLayer), targetRank)) continue
-        }
-
-        const isComposerEl = typeof el.matches === 'function' && el.matches("[data-slot='composer-surface'], [data-slot='room-composer-surface'], [data-slot='composer-status-stack']")
-        if (isComposerEl) {
-          const targetIsOverlay = typeof target.matches === 'function' && target.matches("[data-overlay-surface], [data-glass-raised]")
-          const targetInOverlay = typeof target.closest === 'function' && target.closest('[data-overlay-surface], [data-glass-raised]') !== null
-          if (targetIsOverlay || targetInOverlay) continue
-        }
-
-        const rect = el.getBoundingClientRect()
-        const lx = rect.left - targetRect.left
-        const ly = rect.top - targetRect.top
-        const lw = rect.width
-        const lh = rect.height
-
-        if (!isBodyLayer && (lx + lw <= 0 || ly + lh <= 0 || lx >= targetRect.width || ly >= targetRect.height)) {
-          continue
-        }
-
-        const style = win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(el) : (typeof getComputedStyle === 'function' ? getComputedStyle(el) : null)
-        const r = style ? (parseFloat(style.borderTopLeftRadius) || 12) : 12
-        holes.push(roundedRectSubpath(lx, ly, lw, lh, r))
-      }
-
-      if (!holes.length) {
-        if (target.style && typeof target.style.removeProperty === 'function') {
-          target.style.removeProperty('clip-path')
-        }
-      } else {
-        // A body layer is often a zero-size fixed box whose children overflow it,
-        // so its outer rectangle is a huge box around its origin, not its own size.
-        const outer = isBodyLayer
-          ? 'M -20000 -20000 H 20000 V 20000 H -20000 Z'
-          : `M 0 0 H ${Math.ceil(targetRect.width + 2)} V ${Math.ceil(targetRect.height + 2)} H 0 Z`
-        const clip = `path(evenodd, "${outer} ${holes.join(' ')}")`
-        if (target.style && typeof target.style.setProperty === 'function') {
-          const current = typeof target.style.getPropertyValue === 'function' ? target.style.getPropertyValue('clip-path') : ''
-          if (current !== clip) target.style.setProperty('clip-path', clip, 'important')
-        }
-      }
-    }
-  } finally {
-    // Drop the mutation records our own style writes just queued, so the
-    // observer does not call us again for them.
-    if (cutoutObserver && typeof cutoutObserver.takeRecords === 'function') cutoutObserver.takeRecords()
-    cutoutSyncing = false
-  }
-}
-
-function syncComposerResizeObserver(schedule) {
-  if (typeof ResizeObserver !== 'function' || typeof document === 'undefined') return
-  if (!cutoutResizeObserver) {
-    cutoutResizeObserver = new ResizeObserver(() => schedule())
-  }
-  const composerNodes = document.querySelectorAll("[data-slot='composer-surface'], [data-slot='composer-dock']")
-  for (const node of composerNodes) {
-    if (!observedComposerNodes.has(node)) {
-      cutoutResizeObserver.observe(node)
-      observedComposerNodes.add(node)
-    }
-  }
-}
-
-function disposeCutoutMask() {
-  if (cutoutObserver) {
-    cutoutObserver.disconnect()
-    cutoutObserver = null
-  }
-  if (cutoutResizeObserver) {
-    cutoutResizeObserver.disconnect()
-    cutoutResizeObserver = null
-  }
-  observedComposerNodes.clear()
-  if (cutoutResizeHandler && typeof window !== 'undefined') {
-    window.removeEventListener('resize', cutoutResizeHandler)
-    cutoutResizeHandler = null
-  }
-  if (cutoutMotionHandler && typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
-    document.removeEventListener('transitionend', cutoutMotionHandler, true)
-    document.removeEventListener('animationend', cutoutMotionHandler, true)
-  }
-  cutoutMotionHandler = null
-  cutoutMotionFrame = 0
-  installFlyoutCutoutMask.done = false
-}
-
-function installFlyoutCutoutMask() {
-  if (typeof document === 'undefined') return
-  if (installFlyoutCutoutMask.done) return
-  installFlyoutCutoutMask.done = true
-
-  const schedule = () => {
-    syncFlyoutCutoutMask()
-  }
-
-  const start = () => {
-    if (typeof window !== 'undefined') {
-      cutoutResizeHandler = schedule
-      window.addEventListener('resize', cutoutResizeHandler, { passive: true })
-    }
-
-    // A surface that fades or grows in (Triage's card) is skipped while it is
-    // still invisible; measure again when its own transition or animation ends.
-    if (typeof document.addEventListener === 'function') {
-      cutoutMotionHandler = event => {
-        const el = event && event.target
-        if (!el || typeof el.closest !== 'function' || !el.closest(FLYOUT_CUTOUT_SELECTOR)) return
-        if (cutoutMotionFrame) return
-        const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : cb => setTimeout(cb, 16)
-        cutoutMotionFrame = raf(() => {
-          cutoutMotionFrame = 0
-          schedule()
-        })
-      }
-      document.addEventListener('transitionend', cutoutMotionHandler, true)
-      document.addEventListener('animationend', cutoutMotionHandler, true)
-    }
-
-    syncComposerResizeObserver(schedule)
-
-    if (typeof MutationObserver === 'function' && document.body) {
-      cutoutObserver = new MutationObserver(records => {
-        let relevant = false
-        for (const r of records) {
-          if (r.type === 'attributes' && r.attributeName === 'style') {
-            const el = r.target
-            if (el && typeof el.matches === 'function' && el.matches(FLYOUT_CUTOUT_TARGET_SELECTOR)) {
-              continue
-            }
-          }
-          relevant = true
-          break
-        }
-        if (relevant) {
-          syncComposerResizeObserver(schedule)
-          schedule()
-        }
-      })
-      cutoutObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['data-state', 'style', 'class', 'hidden']
-      })
-    }
-
-    schedule()
-  }
-
-  if (document.body) start()
-  else if (typeof document.addEventListener === 'function') document.addEventListener('DOMContentLoaded', start, { once: true })
-}
-
 function clearChatBackdrop() {
-  cancelFallbackBackdrop()
   setBackdropEnabled(false)
   host.notify({ kind: 'info', message: 'Chat Backdrop cleared. Under Glass it stays off so dragging does not composite the filler JPEG.' })
 }
 
 function applyNotice(glassOn) {
   if (isLinuxPlatform()) {
-    return 'Universal Acrylic active. Linux has no Glass — light CSS fallback over Chat Backdrop (14px blur). It does not blur other apps.'
+    return 'Windows Acrylic theme on. This Hermes has no Glass — a CSS stand-in over Chat Backdrop (14px blur). It does not blur other apps.'
   }
   if (glassOn) {
-    return 'Universal Acrylic active. Glass is on — Chat Backdrop stays mounted in DOM (hidden while focused for zero drag overhead, revealing crisp when unfocused). Frost under-window, scope window — tinted with active theme seeds.'
+    return 'Windows Acrylic theme on. Glass is on, so Windows draws the real acrylic behind the window.'
   }
-  return 'Universal Acrylic active. Real acrylic needs Glass, frost under-window, scope window (sidebar = rail only). Chat Backdrop active.'
+  return 'Windows Acrylic theme on. For real acrylic turn on Glass: Settings → Appearance → Window Translucency → Glass.'
 }
 
 function applyAcrylic() {
-  applyAcrylicEnabled(true)
   if (!requestTheme(THEME_NAME)) {
     host.notifyError('Windows Acrylic theme is not available yet — try ⌘K → Reload desktop plugins.')
     return false
   }
-  const glassOn = readGlassOn()
-  setBackdropEnabled(true)
-  cancelFallbackBackdrop()
-  if (!isLinuxPlatform()) syncHostTranslucency({ material: readDragMaterial(), scope: 'window' })
-  host.notify({ kind: 'info', message: applyNotice(glassOn) })
+  host.notify({ kind: 'info', message: applyNotice(readGlassOn()) })
   return true
 }
 
@@ -1636,109 +990,33 @@ function useGlassOn() {
   return on
 }
 
-function useBackdropPolicy() {
-  const enabled = useAcrylicEnabled()
-  const glassOn = useGlassOn()
-  useEffect(() => {
-    if (!enabled) return undefined
-    if (!isLinuxPlatform() && (!readHostScopeSynced() || !readGlassOn())) {
-      syncHostTranslucency({ material: readDragMaterial(), scope: 'window' })
-    }
-    setBackdropEnabled(true)
-    cancelFallbackBackdrop()
-    return undefined
-  }, [enabled, glassOn])
-  return glassOn
-}
-
-function useMaterial() {
-  const [material, setMaterial] = useState(readDragMaterial)
-  useEffect(() => {
-    const sync = (event) => setMaterial(event.detail || readDragMaterial())
-    const onStorage = (event) => { if (event.key === MATERIAL_KEY) setMaterial(readDragMaterial()) }
-    document.addEventListener(MATERIAL_EVENT, sync)
-    window.addEventListener('storage', onStorage)
-    return () => {
-      document.removeEventListener(MATERIAL_EVENT, sync)
-      window.removeEventListener('storage', onStorage)
-    }
-  }, [])
-  return material
-}
-
-// True only when BOTH Light and Dark Glass scopes are pinned to 'window'.
-function readHostScopeSynced() {
-  try {
-    const raw = localStorage.getItem(TRANSLUCENCY_KEY)
-    if (!raw) return false
-    const book = JSON.parse(raw) || {}
-    const ok = (slot) => !!slot && slot.scope === 'window'
-    return ok(book.light) && ok(book.dark)
-  } catch {
-    return false
-  }
-}
-
 function AppearanceCard() {
   const { themeName } = useTheme()
   const enabled = useAcrylicEnabled()
   const glassOn = useGlassOn()
   const preset = usePreset()
-  const material = useMaterial()
   const linux = isLinuxPlatform()
   const active = themeName === THEME_NAME
-  const scopeSynced = !linux && readHostScopeSynced()
   const step = text => jsx('li', { children: text })
   const steps = linux ? [
-    'Enable Universal Acrylic or the Windows Acrylic theme. Chat Backdrop turns on as the stand-in wallpaper.',
-    'Linux has no Glass row. Hermes only offers Glass on Windows and macOS.',
-    'You get a cheaper CSS fallback over Chat Backdrop. Acrylic blurs at 14px, Frosted and Sanded at 18px, Expressive at 16px. It does not blur other apps.',
-    'Optional, and outside this plugin: a Hyprland window rule or KWin’s Blur effect can frost the real desktop. This plugin cannot set that.',
-    'Composer, bubbles, menus, terminal, and code stay translucent.'
+    'Pick the Windows Acrylic theme (or turn on Every theme to tint any theme).',
+    'This Hermes has no Glass, so you get a CSS stand-in over Chat Backdrop: Acrylic blurs at 14px, Frosted and Sanded at 18px, Expressive at 16px. It does not blur other apps.',
+    'Optional, outside this plugin: a KWin or Hyprland blur rule can frost the real desktop.'
   ] : glassOn ? [
-    'Universal Acrylic is active across all themes! Windows 11 DWM tints with the active theme colors.',
-    'Glass is on. Keep frost on under-window and scope on window. Sidebar scope is the rail only — the chat stays opaque.',
-    'Leave Chat Backdrop off. Apply will not turn it on while Glass is on — the filler JPEG was the CPU spike while dragging.',
-    'Under Glass the preset changes tint depth (Acrylic 40%/72%, Frosted/Sanded 58%, Expressive 68%). For less drag lag pick Smooth Drag Mica (titlebar).',
-    'If acrylic ever drops after a resize or monitor change, hit Wake / Re-sync DWM.'
+    'Glass is on: Windows draws the real acrylic behind the window.',
+    'Presets change how deep the tint is: Acrylic, Frosted, Sanded, Expressive.',
+    'Menus, the prompt box and Settings blur the page behind them. The terminal keeps its own solid background.'
   ] : [
-    'Enable Universal Acrylic or switch to the Windows Acrylic theme.',
-    'Real acrylic: Settings → Appearance → Window Translucency → Glass (not Clear). Frost under-window. Scope window — sidebar scope is the rail only, and the chat stays opaque.',
-    'Until Glass is on, a CSS fallback may load Chat Backdrop after a short wait and blur it at 14px. Turn Chat Backdrop off again once Glass is live.',
-    'Composer, bubbles, menus, terminal, and code stay translucent.'
+    'Pick the Windows Acrylic theme (or turn on Every theme to tint any theme).',
+    'For real acrylic: Settings → Appearance → Window Translucency → Glass (the Glass settings button opens Settings). Acrylic never changes that setting for you.',
+    'Until Glass is on you see a CSS stand-in over Chat Backdrop.'
   ]
   const status = linux
-    ? `Universal Acrylic: ${enabled ? 'on' : 'off'} · Active Theme: ${themeName || 'default'} · ${PRESET_LABELS[preset]} · CSS fallback (no Glass on Linux)`
-    : `Universal Acrylic: ${enabled ? 'on' : 'off'} · Theme: ${themeName || 'default'} · ${PRESET_LABELS[preset]} · Glass: ${glassOn ? 'on' : 'off'} · Scope: ${scopeSynced ? 'window ✓' : 'default'} · Backdrop: ${MATERIAL_LABELS[material]}`
+    ? `Theme: ${themeName || 'default'} · ${PRESET_LABELS[preset]} · Every theme: ${enabled ? 'on' : 'off'} · CSS stand-in (no Glass)`
+    : `Theme: ${themeName || 'default'} · ${PRESET_LABELS[preset]} · Every theme: ${enabled ? 'on' : 'off'} · Glass: ${glassOn ? 'on' : 'off'}`
   const footnote = linux
-    ? 'Real acrylic is Windows 11 22H2+, Glass, frost under-window, scope window. This fallback never blurs other windows.'
-    : 'Real acrylic needs Windows 11 22H2+ with Glass on. Clear is not acrylic. Under live Glass, Chat Backdrop stays off. Universal Acrylic automatically tints with whatever theme is active.'
-
-  const materialRow = !linux && jsxs('div', {
-    className: 'flex flex-wrap gap-1',
-    children: [
-      jsx(Button, {
-        size: 'sm',
-        variant: material === 'under-window' ? 'secondary' : 'ghost',
-        disabled: material === 'under-window',
-        onClick: () => { haptic('tap'); setDragMaterial('under-window') },
-        children: material === 'under-window' ? 'Live Acrylic · on' : 'Live Acrylic (under-window)'
-      }),
-      jsx(Button, {
-        size: 'sm',
-        variant: material === 'titlebar' ? 'secondary' : 'ghost',
-        disabled: material === 'titlebar',
-        onClick: () => { haptic('tap'); setDragMaterial('titlebar') },
-        children: material === 'titlebar' ? 'Smooth Mica · on' : 'Smooth Drag Mica (titlebar)'
-      }),
-      jsx(Button, {
-        size: 'sm',
-        variant: 'ghost',
-        onClick: () => { haptic('tap'); wakeWindowsAcrylic() },
-        children: 'Wake / Re-sync DWM'
-      })
-    ]
-  })
+    ? 'Real acrylic needs Windows 11 22H2+ with Glass on. This stand-in never blurs other windows.'
+    : 'Real acrylic needs Windows 11 22H2+ with Glass on. Clear is not acrylic.'
 
   return jsxs('section', {
     className: 'flex flex-col gap-2 rounded-lg border border-(--ui-stroke-tertiary) p-3 text-sm',
@@ -1747,7 +1025,7 @@ function AppearanceCard() {
         className: 'flex items-center justify-between gap-2',
         children: [
           jsxs('div', { children: [
-            jsx('div', { className: 'font-medium', children: 'Universal Windows Acrylic' }),
+            jsx('div', { className: 'font-medium', children: 'Windows Acrylic' }),
             jsx('div', { className: 'text-xs text-(--ui-text-tertiary)', children: status })
           ] }),
           jsxs('div', {
@@ -1755,15 +1033,21 @@ function AppearanceCard() {
             children: [
               jsx(Button, {
                 size: 'sm',
-                variant: enabled ? 'secondary' : 'outline',
-                onClick: () => { haptic('tap'); toggleAcrylicEnabled() },
-                children: enabled ? 'Universal Acrylic · on' : 'Universal Acrylic · off'
-              }),
-              jsx(Button, {
-                size: 'sm',
                 disabled: active,
                 onClick: () => { haptic('tap'); applyAcrylic() },
                 children: active ? 'Acrylic Theme' : 'Set Acrylic Theme'
+              }),
+              jsx(Button, {
+                size: 'sm',
+                variant: enabled ? 'secondary' : 'outline',
+                onClick: () => { haptic('tap'); toggleAcrylicEnabled() },
+                children: enabled ? 'Every theme · on' : 'Every theme · off'
+              }),
+              jsx(Button, {
+                size: 'sm',
+                variant: 'ghost',
+                onClick: () => { haptic('tap'); openAppearanceSettings() },
+                children: 'Glass settings'
               })
             ]
           })
@@ -1779,22 +1063,6 @@ function AppearanceCard() {
           children: preset === id ? `${PRESET_LABELS[id]} · on` : PRESET_LABELS[id]
         }))
       }),
-      materialRow,
-      jsxs('div', {
-        className: 'flex flex-wrap items-center gap-2',
-        children: [
-          jsx(Button, {
-            size: 'sm',
-            variant: 'outline',
-            onClick: () => { haptic('tap'); toggleOpaqueSurfaceXRay() },
-            children: 'Audit opaque elements (X-Ray)'
-          }),
-          jsx('span', {
-            className: 'text-xs text-(--ui-text-tertiary)',
-            children: 'Outlines every surface still painting an opaque background and copies the list.'
-          })
-        ]
-      }),
       jsx('ol', {
         className: 'list-decimal pl-5 text-xs text-(--ui-text-secondary) space-y-0.5',
         children: steps.map(step)
@@ -1805,19 +1073,21 @@ function AppearanceCard() {
 }
 
 function StatusChip() {
+  const { themeName } = useTheme()
   const enabled = useAcrylicEnabled()
-  const glassOn = useBackdropPolicy()
+  const glassOn = useGlassOn()
   const preset = usePreset()
   const linux = isLinuxPlatform()
+  const on = enabled || themeName === THEME_NAME
   const look = preset === 'acrylic' ? 'acrylic' : preset
-  const label = !enabled ? '◇ acrylic off'
+  const label = !on ? '◇ acrylic off'
     : glassOn ? `◇ ${look}`
     : linux ? `◇ ${look} (css)`
     : `◇ ${look} (no glass)`
-  const title = !enabled ? 'Enable Universal Acrylic'
-    : glassOn ? 'Universal Acrylic live (Glass). Windows 11 DWM tints with active theme.'
-    : linux ? 'CSS acrylic fallback — Linux has no Glass, other apps are not blurred'
-    : 'Universal Acrylic on — enable Glass for live acrylic, or keep the CSS fallback'
+  const title = !on ? 'Acrylic off. Click to tint every theme.'
+    : glassOn ? 'Acrylic on Glass: Windows draws the real acrylic.'
+    : linux ? 'CSS acrylic stand-in — no Glass here, other apps are not blurred.'
+    : 'Acrylic on. Turn on Glass in Settings → Appearance for real acrylic.'
   return jsx('button', {
     type: 'button',
     title,
@@ -1827,231 +1097,14 @@ function StatusChip() {
   })
 }
 
-// ---------------------------------------------------------------------------
-// Opaque Surface X-Ray — audit which surfaces still paint an OPAQUE background
-// (alpha > 0.80) instead of letting Windows 11 Acrylic through.
-// ---------------------------------------------------------------------------
-const XRAY_ATTR = 'data-hermes-acrylic-xray'
-const XRAY_TAG_ATTR = 'data-hermes-acrylic-xray-tag'
-const XRAY_EXCLUDE =
-  "[data-slot='tooltip-content'], [data-slot='tooltip'], [role='tooltip'], [data-slot='tooltip-arrow'], " +
-  "[data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], " +
-  "[data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='select-content'], " +
-  "[data-slot='hover-card-content'], [data-slot='code-card'], [data-slot='command-item'], " +
-  ".xterm, .xterm-screen, .xterm-viewport, .xterm-rows, " +
-  `[${XRAY_ATTR}], [${XRAY_TAG_ATTR}]`
-const XRAY_TAG_CAP = 120
-
-let xrayOn = false
-let xrayMarks = []
-let xrayTagLayer = null
-let xrayScrollHandler = null
-let xrayScrollTimer = 0
-let xrayObserver = null
-const xrayCumulative = new Map()
-
-function colorAlpha(color) {
-  if (!color || color === 'transparent') return 0
-  const rgba = color.match(/rgba?\(([^)]+)\)/i)
-  if (rgba) {
-    const parts = rgba[1].split(/[,\s/]+/).filter(Boolean)
-    return parts.length >= 4 ? Number(parts[3]) : 1
-  }
-  const modern = color.match(/\/\s*([\d.]+)\s*\)/)
-  if (modern) return Number(modern[1])
-  return /^color\(/i.test(color) ? 1 : 1
-}
-
-function describeSurface(el) {
-  const tag = el.tagName ? el.tagName.toLowerCase() : '?'
-  const slot = el.getAttribute ? el.getAttribute('data-slot') : null
-  if (slot) return `${tag}[data-slot=${slot}]`
-  if (el.id) return `${tag}#${el.id}`
-  const cls = typeof el.className === 'string' ? el.className : ''
-  const first = cls.split(/\s+/).filter(Boolean).slice(0, 3).join('.')
-  return first ? `${tag}.${first}` : tag
-}
-
-function selectorFor(el) {
-  const slot = el.getAttribute ? el.getAttribute('data-slot') : null
-  return slot ? `[data-slot='${slot}']` : describeSurface(el)
-}
-
-function clearXrayMarks() {
-  for (const el of xrayMarks) {
-    if (el.style) {
-      el.style.removeProperty('outline')
-      el.style.removeProperty('outline-offset')
-    }
-  }
-  xrayMarks = []
-  if (xrayTagLayer && xrayTagLayer.remove) xrayTagLayer.remove()
-  xrayTagLayer = null
-}
-
-function scanOpaqueSurfaces() {
-  const found = []
-  const nodes = document.querySelectorAll('*')
-  for (const el of nodes) {
-    if (typeof el.matches === 'function' && el.matches(XRAY_EXCLUDE)) continue
-    const rect = el.getBoundingClientRect()
-    if (rect.width < 24 || rect.height < 18) continue
-    const style = getComputedStyle(el)
-    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue
-    const alpha = colorAlpha(style.backgroundColor)
-    if (alpha <= 0.8) continue
-    found.push({ el, alpha })
-  }
-  return found
-}
-
-function paintXrayMarks(found) {
-  xrayTagLayer = document.createElement('div')
-  xrayTagLayer.setAttribute(XRAY_ATTR, '')
-  xrayTagLayer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483600'
-  document.body.append(xrayTagLayer)
-
-  let tagged = 0
-  for (const { el, alpha } of found) {
-    el.style.setProperty('outline', '2px dashed #ff00aa', 'important')
-    el.style.setProperty('outline-offset', '-1px', 'important')
-    xrayMarks.push(el)
-    if (tagged >= XRAY_TAG_CAP) continue
-    const rect = el.getBoundingClientRect()
-    const tag = document.createElement('span')
-    tag.setAttribute(XRAY_TAG_ATTR, '')
-    tag.textContent = `${describeSurface(el)} (${alpha.toFixed(2)})`
-    tag.style.cssText =
-      `position:fixed;left:${Math.max(2, rect.left + 2)}px;top:${Math.max(2, rect.top + 2)}px;` +
-      'background:#ff00aa;color:#FFFFFF;font:600 10px/1.4 ui-monospace,Consolas,monospace;' +
-      'padding:1px 4px;border-radius:3px;white-space:nowrap;max-width:70ch;overflow:hidden;' +
-      'text-overflow:ellipsis;z-index:2147483601'
-    xrayTagLayer.append(tag)
-    tagged += 1
-  }
-}
-
-function xrayMarkdown(found) {
-  for (const entry of found) {
-    const sel = selectorFor(entry.el)
-    const desc = describeSurface(entry.el)
-    const prev = xrayCumulative.get(sel)
-    if (!prev || entry.alpha > prev.alpha) {
-      xrayCumulative.set(sel, { selector: sel, desc, alpha: entry.alpha })
-    }
-  }
-  const all = [...xrayCumulative.values()]
-  const rows = all.map((entry, i) => `| ${i + 1} | \`${entry.selector}\` | \`${entry.desc}\` | ${entry.alpha.toFixed(2)} |`)
-  return [
-    '# Opaque Surface X-Ray (Cumulative Session Audit)',
-    '',
-    `${all.length} unique selector(s) (${found.length} currently visible) paint an opaque background (alpha > 0.80) — these block Windows 11 Acrylic.`,
-    '',
-    '| # | Target Selector | Element | Background alpha |',
-    '|---|-----------------|---------|------------------|',
-    ...rows,
-    ''
-  ].join('\n')
-}
-
-function refreshXray() {
-  if (!xrayOn || typeof document === 'undefined') return
-  clearXrayMarks()
-  const found = scanOpaqueSurfaces()
-  paintXrayMarks(found)
-  const markdown = xrayMarkdown(found)
-  try {
-    Promise.resolve(writeClipboardText(markdown)).catch(() => {})
-  } catch { /* ignore */ }
-}
-
-function toggleOpaqueSurfaceXRay() {
-  if (typeof document === 'undefined') return false
-
-  if (xrayOn) {
-    xrayOn = false
-    clearXrayMarks()
-    if (xrayScrollHandler) {
-      window.removeEventListener('scroll', xrayScrollHandler, true)
-      window.removeEventListener('resize', xrayScrollHandler)
-      xrayScrollHandler = null
-    }
-    if (xrayObserver) {
-      xrayObserver.disconnect()
-      xrayObserver = null
-    }
-    host.notify({ kind: 'info', message: `Opaque Surface X-Ray off — marks cleared (${xrayCumulative.size} total unique selector(s) copied in clipboard).` })
-    return false
-  }
-
-  xrayCumulative.clear()
-  xrayOn = true
-
-  const scheduleRefresh = () => {
-    if (xrayScrollTimer) clearTimeout(xrayScrollTimer)
-    xrayScrollTimer = setTimeout(refreshXray, 160)
-  }
-  xrayScrollHandler = scheduleRefresh
-  window.addEventListener('scroll', xrayScrollHandler, true)
-  window.addEventListener('resize', xrayScrollHandler)
-
-  if (typeof MutationObserver === 'function' && document.body) {
-    xrayObserver = new MutationObserver(records => {
-      for (const r of records) {
-        let own = false
-        for (const n of r.addedNodes || []) {
-          if (n && n.nodeType === 1 && (n.hasAttribute?.(XRAY_ATTR) || n.hasAttribute?.(XRAY_TAG_ATTR))) own = true
-        }
-        for (const n of r.removedNodes || []) {
-          if (n && n.nodeType === 1 && (n.hasAttribute?.(XRAY_ATTR) || n.hasAttribute?.(XRAY_TAG_ATTR))) own = true
-        }
-        if (!own) {
-          scheduleRefresh()
-          return
-        }
-      }
-    })
-    xrayObserver.observe(document.body, { childList: true, subtree: true })
-  }
-
-  setTimeout(() => {
-    if (!xrayOn) return
-    const found = scanOpaqueSurfaces()
-    clearXrayMarks()
-    paintXrayMarks(found)
-    const markdown = xrayMarkdown(found)
-    try {
-      Promise.resolve(writeClipboardText(markdown)).catch(() => {})
-    } catch { /* ignore */ }
-    host.notify({
-      kind: 'info',
-      message: found.length
-        ? `Opaque Surface X-Ray ON — ${found.length} opaque element(s) marked magenta. Navigate around; clipboard auto-updates with every opaque selector!`
-        : 'Opaque Surface X-Ray ON — 0 opaque surfaces on this screen! Navigate to other views to scan them live.'
-    })
-  }, 160)
-  return true
-}
-
 export default {
   id: ID,
   name: 'Hermes Acrylic',
   register(ctx) {
-    const acrylicOn = readAcrylicEnabled()
-    applyAcrylicEnabled(acrylicOn)
+    pluginCtx = ctx
     applyPreset(readPreset())
-    if (acrylicOn) {
-      setBackdropEnabled(true)
-    }
-    installGlassBackdropLock()
-    installTerminalCanvasInterceptor()
-    installTerminalAcrylicDomRenderer()
-    installFlyoutCutoutMask()
     installWindowFocusTracker()
     installGlobalAcrylicStyle()
-    if (!isLinuxPlatform() && typeof document !== 'undefined' && acrylicOn) {
-      syncHostTranslucency({ material: readDragMaterial(), scope: 'window' })
-    }
     ctx.registerMany([
       { id: 'theme', area: THEMES_AREA, data: THEME },
       {
@@ -2059,7 +1112,7 @@ export default {
         area: PALETTE_AREA,
         data: {
           id: `${ID}.toggle`,
-          label: 'Acrylic: Toggle Universal Acrylic On/Off',
+          label: 'Acrylic: tint every theme (on/off)',
           keywords: ['acrylic', 'toggle', 'universal', 'enable', 'disable', 'glass', 'translucent'],
           run: () => { toggleAcrylicEnabled(); haptic('tap') }
         }
@@ -2085,36 +1138,6 @@ export default {
         }
       })),
       {
-        id: 'wake-dwm',
-        area: PALETTE_AREA,
-        data: {
-          id: `${ID}.wake-dwm`,
-          label: 'Acrylic: Wake / Re-sync Windows DWM',
-          keywords: ['acrylic', 'dwm', 'wake', 'resync', 'material', 'stuck', 'glitch'],
-          run: () => { wakeWindowsAcrylic(); haptic('tap') }
-        }
-      },
-      {
-        id: 'drag-mica',
-        area: PALETTE_AREA,
-        data: {
-          id: `${ID}.drag-mica`,
-          label: 'Acrylic: Smooth Drag mode (Mica)',
-          keywords: ['acrylic', 'mica', 'titlebar', 'drag', 'smooth', 'performance'],
-          run: () => { setDragMaterial('titlebar'); haptic('tap') }
-        }
-      },
-      {
-        id: 'drag-acrylic',
-        area: PALETTE_AREA,
-        data: {
-          id: `${ID}.drag-acrylic`,
-          label: 'Acrylic: Live Blur mode (Acrylic)',
-          keywords: ['acrylic', 'under-window', 'drag', 'live', 'blur', 'performance'],
-          run: () => { setDragMaterial('under-window'); haptic('tap') }
-        }
-      },
-      {
         id: 'clear-backdrop',
         area: PALETTE_AREA,
         data: {
@@ -2129,19 +1152,9 @@ export default {
         area: PALETTE_AREA,
         data: {
           id: `${ID}.glass-help`,
-          label: 'Acrylic: open Settings',
+          label: 'Acrylic: open Settings → Appearance (Glass)',
           keywords: ['acrylic', 'glass', 'appearance', 'linux', 'fallback'],
-          run: () => { const r = ctx.runAction?.('nav.settings'); if (r && r.ok === false) host.notifyError('Open Settings → Appearance manually.') }
-        }
-      },
-      {
-        id: 'xray',
-        area: PALETTE_AREA,
-        data: {
-          id: `${ID}.xray`,
-          label: 'Acrylic: Toggle Opaque Surface X-Ray (Audit)',
-          keywords: ['acrylic', 'xray', 'x-ray', 'audit', 'opaque', 'surface', 'scanner', 'scan', 'transparency', 'debug'],
-          run: () => { toggleOpaqueSurfaceXRay(); haptic('tap') }
+          run: () => openAppearanceSettings()
         }
       },
       { id: 'appearance', area: APPEARANCE_AREAS.extra, render: () => jsx(AppearanceCard, {}) },
