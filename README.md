@@ -25,7 +25,7 @@ The blur of your desktop behind the window comes from Hermes itself: **Settings 
 ## How menus and the terminal look
 
 - **Ctrl+K and full-page cards** (Settings, Scheduled jobs, Profiles and the like) are real acrylic under Glass: the app is cut away exactly under them, so Windows' blur of your desktop shows through. Without Glass they blur the page behind them.
-- **Menus, the `/` menu and other floating cards** use a denser glass fill under Glass. Without Glass they blur the page behind them.
+- **Menus, the `/` menu, dialogs, toasts, tooltips and the composer** use a denser glass fill under Glass, so the chat behind them does not read through. Without Glass they blur the page behind them.
 - **The terminal** keeps a solid background in the theme's colour, with a thin outline; the frame and tab strip around it stay glass. Hermes draws the terminal's text with an opaque renderer for sharp text, and a plugin cannot change that.
 
 ## Install

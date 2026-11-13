@@ -381,7 +381,7 @@ ${both(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [dat
   animation: none !important;
   filter: none !important;
 }
-${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper], [data-slot='composer-completion-drawer']`)} {
+${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-slot='dialog-content'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper], [data-slot='composer-completion-drawer'], [data-slot='card-stack-surface']`)} {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
@@ -417,6 +417,9 @@ ${both(`[data-radix-popper-content-wrapper] > [data-slot='tooltip-content'][data
   box-shadow: var(--layer-hi), 0 4px 14px rgba(0, 0, 0, 0.32) !important;
   opacity: 1 !important;
   filter: none !important;
+}
+${underGlass(`[data-radix-popper-content-wrapper] > [data-slot='tooltip-content'][data-side]`)} {
+  background-color: var(--acrylic-tooltip) !important;
 }
 ${both(`[data-slot='tooltip-content'] [data-slot='tooltip-arrow']`)} {
   display: none !important;
@@ -501,6 +504,7 @@ ${both(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .gr
   filter: none !important;
 }
 ${underGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface, [data-slot='composer-dock'] [class*='backdrop-blur']`)} {
+  background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 90%, transparent) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
@@ -565,9 +569,10 @@ ${noGlass(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Comma
   backdrop-filter: blur(24px) saturate(1.3) !important;
 }
 /* Under Glass a CSS blur only sees the page, never the Windows material, so
-   floating menus carry a denser fill instead. Ctrl+K and full-page cards get
-   the real material: see the cut-outs below. */
-${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-radix-popper-content-wrapper] > [data-side], [data-slot='composer-completion-drawer'], [data-acrylic-flyout], .hsj-detail`)} {
+   floating menus, dialogs, the Layout editor and toasts carry a denser fill
+   instead. Ctrl+K and full-page cards get the real material: see the
+   cut-outs below. */
+${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-radix-popper-content-wrapper] > [data-side], [data-slot='composer-completion-drawer'], [data-acrylic-flyout], .hsj-detail, [role='dialog'][data-slot='dialog-content'], [data-slot='card-stack-surface'], [class*='w-[26rem]'][class*='bg-popover']`)} {
   background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 90%, transparent) !important;
 }
 /* Ctrl+K and full-page cards under Glass: the app is cut away exactly under
