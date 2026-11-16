@@ -10,7 +10,7 @@
 // --theme-background-seed, --theme-sidebar-seed, --theme-card-seed,
 // --theme-elevated-seed, --theme-bubble-seed and --theme-foreground.
 import {
-  APPEARANCE_AREAS, Button, PALETTE_AREA, STATUSBAR_AREAS, THEMES_AREA,
+  APPEARANCE_AREAS, Button, ListRow, PALETTE_AREA, STATUSBAR_AREAS, SegmentedControl, THEMES_AREA,
   haptic, host, requestTheme, useTheme
 } from '@hermes/plugin-sdk'
 import { useEffect, useState } from 'react'
@@ -25,10 +25,10 @@ const ENABLED_EVENT = 'hermes-acrylic-enabled'
 const UNFOCUSED_ATTR = 'data-hermes-window-unfocused'
 const GLOBAL_STYLE_ID = 'hermes-acrylic-global-css'
 
-// WinUI Acrylic Base / Packshot Studio: chrome seed #202020 / #FCFCFC.
+// WinUI Acrylic Base: chrome seed #202020 / #FCFCFC.
 // Under live Glass, DWM already tints natively, so body paints only the light
 // --material-tint-glass sheet (.46 dark / .44 light for the default preset);
-// the full Packshot --material-tint is the no-Glass fallback. Raised cards
+// the full --material-tint is the no-Glass fallback. Raised cards
 // paint a single --control-fill layer on top; nested inputs stay transparent.
 const LIGHT = {
   background: '#FCFCFC', foreground: '#1B1B1B',
@@ -83,13 +83,86 @@ function noGlass(selectors) {
   )).join(',\n')
 }
 
-// Static sand grain. A few dots in a tiled SVG — no feTurbulence, no animation.
-const SAND_GRAIN =
-  'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'48\' height=\'48\'%3E%3Cg fill=\'%23000\' fill-opacity=\'.22\'%3E%3Ccircle cx=\'4\' cy=\'6\' r=\'.7\'/%3E%3Ccircle cx=\'20\' cy=\'14\' r=\'.55\'/%3E%3Ccircle cx=\'36\' cy=\'8\' r=\'.6\'/%3E%3Ccircle cx=\'12\' cy=\'28\' r=\'.5\'/%3E%3Ccircle cx=\'30\' cy=\'34\' r=\'.65\'/%3E%3Ccircle cx=\'44\' cy=\'26\' r=\'.45\'/%3E%3C/g%3E%3Cg fill=\'%23fff\' fill-opacity=\'.2\'%3E%3Ccircle cx=\'15\' cy=\'4\' r=\'.5\'/%3E%3Ccircle cx=\'8\' cy=\'40\' r=\'.6\'/%3E%3Ccircle cx=\'27\' cy=\'22\' r=\'.5\'/%3E%3Ccircle cx=\'40\' cy=\'42\' r=\'.55\'/%3E%3Ccircle cx=\'22\' cy=\'44\' r=\'.4\'/%3E%3C/g%3E%3C/svg%3E")'
+// Grain is noise, the way Windows acrylic has it: a 128px tile of random grey
+// pixels at one low opacity, drawn once on a canvas (never put in the page)
+// and fixed-seeded, so it is the same on every load. Fine has one value per
+// pixel, Coarse one per 2×2 block. Strength 100 is 12% opacity; Ctrl+K and
+// cards get Windows' own 2%. No feTurbulence, no animation.
+const NOISE_TILE = 128
+const NOISE_MAX_ALPHA = 0.12
+const FLYOUT_NOISE_ALPHA = 0.02
+const noiseCache = new Map()
 
-// Subtle Win11 Acrylic Noise Texture: very fine 3.5% opacity grain for flyouts and Ctrl+K.
-const FLYOUT_GRAIN =
-  'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'48\' height=\'48\'%3E%3Cg fill=\'%23000\' fill-opacity=\'.035\'%3E%3Ccircle cx=\'4\' cy=\'6\' r=\'.7\'/%3E%3Ccircle cx=\'20\' cy=\'14\' r=\'.55\'/%3E%3Ccircle cx=\'36\' cy=\'8\' r=\'.6\'/%3E%3Ccircle cx=\'12\' cy=\'28\' r=\'.5\'/%3E%3Ccircle cx=\'30\' cy=\'34\' r=\'.65\'/%3E%3Ccircle cx=\'44\' cy=\'26\' r=\'.45\'/%3E%3C/g%3E%3Cg fill=\'%23fff\' fill-opacity=\'.035\'%3E%3Ccircle cx=\'15\' cy=\'4\' r=\'.5\'/%3E%3Ccircle cx=\'8\' cy=\'40\' r=\'.6\'/%3E%3Ccircle cx=\'27\' cy=\'22\' r=\'.5\'/%3E%3Ccircle cx=\'40\' cy=\'42\' r=\'.55\'/%3E%3Ccircle cx=\'22\' cy=\'44\' r=\'.4\'/%3E%3C/g%3E%3C/svg%3E")'
+function clampNumber(value, lo, hi, fallback) {
+  const n = Math.round(Number(value))
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback
+}
+
+function noiseTile(block, alpha) {
+  const key = `${block}:${alpha}`
+  if (noiseCache.has(key)) return noiseCache.get(key)
+  let out = 'none'
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = NOISE_TILE
+    const g = canvas.getContext('2d')
+    const img = g.createImageData(NOISE_TILE, NOISE_TILE)
+    const d = img.data
+    const a = Math.round(alpha * 255)
+    let seed = 0x2f6b1d
+    const rnd = () => { // mulberry32
+      seed = (seed + 0x6D2B79F5) | 0
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+    for (let y = 0; y < NOISE_TILE; y += block) {
+      for (let x = 0; x < NOISE_TILE; x += block) {
+        const v = Math.floor(rnd() * 8) * 36 + 3
+        for (let yy = y; yy < y + block; yy++) {
+          for (let xx = x; xx < x + block; xx++) {
+            const i = (yy * NOISE_TILE + xx) * 4
+            d[i] = d[i + 1] = d[i + 2] = v
+            d[i + 3] = a
+          }
+        }
+      }
+    }
+    g.putImageData(img, 0, 0)
+    out = `url("${canvas.toDataURL('image/png')}")`
+  } catch {
+    // No canvas (tests, a locked-down host): no grain rather than a broken one.
+  }
+  noiseCache.set(key, out)
+  return out
+}
+
+function grainImage(kind, strength) {
+  const s = clampNumber(strength, 0, 100, 0)
+  if ((kind !== 'fine' && kind !== 'coarse') || !s) return 'none'
+  return noiseTile(kind === 'coarse' ? 2 : 1, +(s / 100 * NOISE_MAX_ALPHA).toFixed(4))
+}
+
+// What each preset sets, in the terms of the options page (Settings ▸ Plugins ▸
+// Acrylic). Tint is the share of the theme colour over the glass
+// (--acrylic-chrome-keep): Acrylic keeps 40% in light mode and 72% in dark
+// mode, the others the same in both. Frost haze 100 lays a milky layer at 45%.
+const PRESET_OPTIONS = {
+  acrylic: { tint: { light: 40, dark: 72 }, haze: 0, grain: 'off', grainStrength: 0 },
+  frosted: { tint: 58, haze: 0, grain: 'off', grainStrength: 0 },
+  sanded: { tint: 58, haze: 0, grain: 'fine', grainStrength: 40 },
+  expressive: { tint: 68, haze: 0, grain: 'off', grainStrength: 0 },
+  heavy: { tint: 45, haze: 35, grain: 'fine', grainStrength: 45 }
+}
+const TINT_MIN = 20
+const TINT_MAX = 95
+const HAZE_MAX_ALPHA = 0.45
+
+function hazeAlpha(haze) {
+  return +(clampNumber(haze, 0, 100, 0) / 100 * HAZE_MAX_ALPHA).toFixed(4)
+}
+
+
 
 // Body paints the chrome tint on every path — the light --material-tint-glass
 // sheet under live Glass, the full --material-tint on no-Glass; shell fills
@@ -109,7 +182,11 @@ const CSS = `
   --acrylic-blur: 14px;
   --acrylic-saturate: 1;
   --acrylic-grain: none;
-  --acrylic-flyout-grain: ${FLYOUT_GRAIN};
+  /* Frost haze: a milky layer over the glass tint (0 = none). */
+  --acrylic-haze: 0;
+  --acrylic-haze-rgb: 255 255 255;
+  --acrylic-haze-layer: linear-gradient(rgb(var(--acrylic-haze-rgb) / var(--acrylic-haze)), rgb(var(--acrylic-haze-rgb) / var(--acrylic-haze)));
+  --acrylic-flyout-grain: var(--acrylic-noise-flyout, none);
   --acrylic-recessed: color-mix(in srgb, var(--theme-sidebar-seed, #F0F0F4) 32%, rgba(0, 0, 0, 0.04));
   --control-fill: color-mix(in srgb, var(--theme-card-seed, #FFFFFF) 52%, rgba(255, 255, 255, 0.18));
   --control-fill-hover: color-mix(in srgb, var(--theme-card-seed, #FFFFFF) 66%, rgba(255, 255, 255, 0.24));
@@ -120,6 +197,8 @@ const CSS = `
   --acrylic-popover: var(--acrylic-flyout);
   --acrylic-popover-fg: var(--theme-foreground, #1B1B1B);
   --acrylic-tooltip: color-mix(in srgb, var(--theme-elevated-seed, #F9F9FB) 92%, rgba(255, 255, 255, 0.06));
+  /* The normal, solid background for surfaces that cannot be real glass (see THE RULE). */
+  --acrylic-solid: var(--theme-elevated-seed, #F9F9FB);
   --command-input-well: color-mix(in srgb, var(--theme-background-seed, #F0F0F4) 45%, rgba(0, 0, 0, 0.04));
   --acrylic-overlay-card: color-mix(in srgb, var(--theme-elevated-seed, #F9F9FB) 48%, transparent);
   --acrylic-scrim: color-mix(in srgb, var(--theme-background-seed, #FCFCFC) 46%, transparent);
@@ -130,17 +209,19 @@ const CSS = `
   --material-tint: color-mix(in srgb, var(--acrylic-theme-base) 65%, transparent);
   --material-tint-glass: color-mix(in srgb, var(--acrylic-theme-base) var(--acrylic-chrome-keep, 72%), transparent);
   --acrylic-sidebar-tint: color-mix(in srgb, var(--theme-sidebar-seed, #141418) 28%, transparent);
+  --acrylic-haze-rgb: 228 225 236;
   --acrylic-recessed: color-mix(in srgb, var(--theme-sidebar-seed, #141418) 34%, rgba(0, 0, 0, 0.16));
   --control-fill: color-mix(in srgb, var(--theme-card-seed, #2B2B2B) 44%, rgba(255, 255, 255, 0.05));
   --control-fill-hover: color-mix(in srgb, var(--theme-card-seed, #2B2B2B) 56%, rgba(255, 255, 255, 0.08));
   --bubble-fill: color-mix(in srgb, var(--theme-bubble-seed, var(--theme-card-seed, #2B2B2B)) 50%, rgba(255, 255, 255, 0.06));
   --layer-stroke: color-mix(in srgb, var(--theme-foreground, #FFFFFF) 11%, transparent);
   --layer-hi: inset 0 1px 0 rgba(255, 255, 255, 0.09);
-  --acrylic-flyout-grain: ${FLYOUT_GRAIN};
+  --acrylic-flyout-grain: var(--acrylic-noise-flyout, none);
   --acrylic-flyout: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 68%, rgba(16, 18, 24, 0.14));
   --acrylic-popover: var(--acrylic-flyout);
   --acrylic-popover-fg: var(--theme-foreground, #FFFFFF);
   --acrylic-tooltip: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 92%, rgba(16, 18, 24, 0.06));
+  --acrylic-solid: var(--theme-elevated-seed, #24262E);
   --command-input-well: color-mix(in srgb, var(--theme-background-seed, #141418) 48%, rgba(0, 0, 0, 0.22));
   --acrylic-overlay-card: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 42%, transparent);
   --acrylic-scrim: color-mix(in srgb, var(--theme-background-seed, #202020) 52%, transparent);
@@ -157,7 +238,7 @@ const CSS = `
   --acrylic-chrome-keep: 58%;
 }
 :root[data-hermes-acrylic-preset='sanded'] {
-  --acrylic-grain: ${SAND_GRAIN};
+  --acrylic-grain: var(--acrylic-noise-sanded, none);
 }
 :root[data-hermes-acrylic-preset='expressive'] {
   --acrylic-chrome-keep: 68%;
@@ -166,6 +247,14 @@ const CSS = `
 }
 :root.dark[data-hermes-acrylic-preset='expressive'] {
   --acrylic-chrome-keep: 68%;
+}
+:root[data-hermes-acrylic-preset='heavy'],
+:root.dark[data-hermes-acrylic-preset='heavy'] {
+  --acrylic-chrome-keep: ${PRESET_OPTIONS.heavy.tint}%;
+  --acrylic-haze: ${hazeAlpha(PRESET_OPTIONS.heavy.haze)};
+  --acrylic-grain: var(--acrylic-noise-heavy, none);
+  --acrylic-blur: 18px;
+  --acrylic-saturate: 1.12;
 }
 
 /* ===========================================================================
@@ -207,11 +296,15 @@ const CSS = `
   --dt-popover: var(--acrylic-flyout) !important;
 }
 
-/* Override host [data-glass-opaque] descendant variable scopes */
+/* [data-glass-opaque] is Hermes' "must stay filled" contract (styles.css):
+   the connecting and boot screens, onboarding, the update hold, error pages,
+   card stacks, the Settings search pill, a floating approval, the diff
+   gutter, a dragged sidebar row. They cover the app, so they cannot be real
+   glass: THE RULE gives them the theme's solid colours, as Hermes does. */
 ${both(`[data-glass-opaque]`)} {
-  --ui-chat-surface-background: var(--acrylic-flyout) !important;
-  --ui-editor-surface-background: var(--control-fill) !important;
-  --ui-sidebar-surface-background: var(--acrylic-recessed) !important;
+  --ui-chat-surface-background: var(--acrylic-solid) !important;
+  --ui-editor-surface-background: var(--acrylic-solid) !important;
+  --ui-sidebar-surface-background: var(--theme-sidebar-seed, var(--acrylic-solid)) !important;
 }
 
 /* Settings & OverlayView Modal Cards ([data-overlay-surface] / [data-glass-raised]):
@@ -255,11 +348,13 @@ ${both(`[data-overlay-surface] .grid[class*='grid-cols-'], [data-glass-raised] .
   background-image: none !important;
 }
 
-/* Packshot chrome under Glass: body paints ONLY --material-tint-glass */
+/* Chrome under Glass: body paints ONLY --material-tint-glass */
 :root[data-hermes-glass] body,
 :root[data-hermes-glass-on] body {
   background-color: var(--material-tint-glass) !important;
-  background-image: none !important;
+  background-image: var(--acrylic-haze-layer), var(--acrylic-grain, none) !important;
+  background-repeat: repeat !important;
+  background-size: auto, 128px 128px !important;
   filter: none !important;
   mix-blend-mode: normal !important;
   -webkit-backdrop-filter: none !important;
@@ -268,12 +363,20 @@ ${both(`[data-overlay-surface] .grid[class*='grid-cols-'], [data-glass-raised] .
 :root[data-hermes-glass][data-hermes-glass-scope='sidebar'] body {
   background: linear-gradient(
     to right,
+    rgb(var(--acrylic-haze-rgb) / var(--acrylic-haze)) var(--glass-rail-edge, 0px),
+    transparent var(--glass-rail-edge, 0px)
+  ), linear-gradient(
+    to right,
     var(--material-tint-glass) var(--glass-rail-edge, 0px),
     var(--ui-bg-chrome) var(--glass-rail-edge, 0px)
   ) !important;
 }
 :root[data-hermes-glass][data-hermes-glass-scope='sidebar'][dir='rtl'] body {
   background: linear-gradient(
+    to left,
+    rgb(var(--acrylic-haze-rgb) / var(--acrylic-haze)) var(--glass-rail-edge, 0px),
+    transparent var(--glass-rail-edge, 0px)
+  ), linear-gradient(
     to left,
     var(--material-tint-glass) var(--glass-rail-edge, 0px),
     var(--ui-bg-chrome) var(--glass-rail-edge, 0px)
@@ -283,9 +386,9 @@ ${both(`[data-overlay-surface] .grid[class*='grid-cols-'], [data-glass-raised] .
 /* No-Glass fallback (Linux; Windows/macOS before Glass is on) */
 :root:not([data-hermes-glass]):not([data-hermes-glass-on]) body {
   background-color: var(--material-tint) !important;
-  background-image: var(--acrylic-grain, none) !important;
+  background-image: var(--acrylic-haze-layer), var(--acrylic-grain, none) !important;
   background-repeat: repeat !important;
-  background-size: 48px 48px !important;
+  background-size: auto, 128px 128px !important;
 }
 :root:not([data-hermes-glass]):not([data-hermes-glass-on]) {
   --ui-chat-surface-background: transparent;
@@ -437,7 +540,7 @@ ${both(`[data-slot='tooltip-content'] [data-slot='tooltip-arrow']`)} {
 /* Tier 2 — Raised In-Page Acrylic Cards:
    Chat bubbles, Kanban cards, inline tool/diff cards, widgets.
    No backdrop-filter under Glass to preserve real DWM translucency. */
-${both(`[data-slot='group-chat-message-content'], [data-slot='pet-plugin-bubble'], [data-slot='user-message'], [data-slot='kanban-card'], .cursor-grab[class*='bg-(--ui-bg-elevated)'], [class*='ui-widget-surface-background'], [data-slot='tool-block'], [data-slot='file-diff-panel'], [class*='bg-card'], [class*='bg-(--dt-card)'], [class*='bg-(--ui-bg-editor)'], [class*='bg-(--ui-bg-card)']`)} {
+${both(`[data-slot='group-chat-message-content'], [data-slot='pet-plugin-bubble'], [data-slot='user-message'], [data-slot='kanban-card'], .cursor-grab[class*='bg-(--ui-bg-elevated)'], [class*='ui-widget-surface-background'], [data-slot='tool-block'][data-tool-open], [data-slot='file-diff-panel'], [class*='bg-card'], [class*='bg-(--dt-card)'], [class*='bg-(--ui-bg-editor)'], [class*='bg-(--ui-bg-card)']`)} {
   background: var(--control-fill) !important;
   border: 1px solid var(--layer-stroke) !important;
   box-shadow: var(--layer-hi) !important;
@@ -449,6 +552,11 @@ ${both(`[data-slot='group-chat-message-content'], [data-slot='pet-plugin-bubble'
 /* User message bubbles use dedicated bubble fill */
 ${both(`[data-slot='user-message']`)} {
   background: var(--bubble-fill) !important;
+}
+/* Under Glass the pinned prompt can stay light: Hermes clips the text that
+   scrolls under it (use-sticky-prompt-clip.ts), so nothing reads through. */
+${underGlass(`[data-slot='user-message'], .composer-human-message`)} {
+  background: color-mix(in srgb, var(--theme-bubble-seed, var(--theme-card-seed, #2B2B2B)) 34%, transparent) !important;
 }
 
 /* Standalone inputs */
@@ -504,9 +612,21 @@ ${both(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .gr
   filter: none !important;
 }
 ${underGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface, [data-slot='composer-dock'] [class*='backdrop-blur']`)} {
-  background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 90%, transparent) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+}
+/* Light fill under Glass: the thread is masked out below (next rule), so
+   the window's real acrylic shows through the composer like the chat. */
+${underGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface`)} {
+  background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 34%, transparent) !important;
+}
+/* Under Glass the chat fades out before it reaches the composer, so the
+   composer shows the window's real acrylic, not text behind it. The height
+   is Hermes' own --composer-surface-measured-height: the strip where the
+   thread viewport runs under the composer (styles.css --thread-viewport-height). */
+${underGlass(`[data-slot='aui_thread-viewport']`)} {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--composer-surface-measured-height, 2.75rem) - 1.5rem), transparent calc(100% - var(--composer-surface-measured-height, 2.75rem)));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--composer-surface-measured-height, 2.75rem) - 1.5rem), transparent calc(100% - var(--composer-surface-measured-height, 2.75rem)));
 }
 ${noGlass(`[data-slot='composer-surface'], [data-slot='room-composer-surface'], .group\\/composer-surface`)} {
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
@@ -568,12 +688,16 @@ ${noGlass(`[role='dialog'][class*='left-1/2'], [role='dialog'][aria-label='Comma
   -webkit-backdrop-filter: blur(24px) saturate(1.3) !important;
   backdrop-filter: blur(24px) saturate(1.3) !important;
 }
-/* Under Glass a CSS blur only sees the page, never the Windows material, so
-   floating menus, dialogs, the Layout editor and toasts carry a denser fill
-   instead. Ctrl+K and full-page cards get the real material: see the
-   cut-outs below. */
-${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-radix-popper-content-wrapper] > [data-side], [data-slot='composer-completion-drawer'], [data-acrylic-flyout], .hsj-detail, [role='dialog'][data-slot='dialog-content'], [data-slot='card-stack-surface'], [class*='w-[26rem]'][class*='bg-popover']`)} {
-  background-color: color-mix(in srgb, var(--theme-elevated-seed, #24262E) 90%, transparent) !important;
+/* THE RULE: a surface is glass only where it can be real glass. Under Glass a
+   CSS blur only sees the page, never the Windows material, so a floating
+   surface the plugin cannot cut the app away under would be a see-through
+   tint over the page: broken. Those surfaces get the theme's normal, solid
+   background instead: menus, popovers, dialogs, tooltips, toasts, the Layout
+   editor, the status-bar menus. Ctrl+K and full-page cards get the real
+   material: see the cut-outs below. */
+${underGlass(`[data-slot='popover-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'], [data-slot='context-menu-content'], [data-slot='context-menu-sub-content'], [data-slot='select-content'], [data-slot='hover-card-content'], [role='menu'], [data-radix-popper-content-wrapper] > [data-side], [data-radix-popper-content-wrapper] > [data-slot='tooltip-content'][data-side], [data-slot='statusbar'] [data-slot='dropdown-menu-content'], [data-slot='composer-completion-drawer'], [data-acrylic-flyout], .hsj-detail, [role='dialog'][data-slot='dialog-content']:not([aria-label='Command palette']):not([class*='min(34rem']), [data-slot='card-stack-surface'], [class*='w-[26rem]'][class*='bg-popover']`)} {
+  background-color: var(--acrylic-solid) !important;
+  background-image: none !important;
 }
 /* Ctrl+K and full-page cards under Glass: the app is cut away exactly under
    them, so they show the window's real acrylic instead of the page.
@@ -794,9 +918,9 @@ ${both(`.xterm, .xterm-viewport, .xterm-screen, .xterm-rows, .xterm-rows > div, 
   position: absolute;
   inset: 0;
   background-color: var(--material-tint);
-  background-image: var(--acrylic-grain, none);
+  background-image: var(--acrylic-haze-layer), var(--acrylic-grain, none);
   background-repeat: repeat;
-  background-size: 48px 48px;
+  background-size: auto, 128px 128px;
   pointer-events: none;
 }
 
@@ -808,6 +932,7 @@ ${both(`.xterm, .xterm-viewport, .xterm-screen, .xterm-rows, .xterm-rows > div, 
     --acrylic-blur: 0px !important;
     --acrylic-saturate: 1 !important;
     --acrylic-grain: none !important;
+    --acrylic-haze: 0 !important;
     --acrylic-flyout-grain: none !important;
     --acrylic-overlay-card: #FCFCFC !important;
   }
@@ -828,7 +953,7 @@ ${both(`.xterm, .xterm-viewport, .xterm-screen, .xterm-rows, .xterm-rows > div, 
 const THEME = {
   name: THEME_NAME,
   label: 'Windows Acrylic',
-  description: 'Windows materials: Acrylic (.44/.46 / 14px), Frosted (.58 / 18px), Sanded (frosted + static grain), Expressive (.68 / 16px). Real blur is Win11 Glass. Linux / Glass off blurs Chat Backdrop only. Reduced transparency goes solid.',
+  description: 'Windows materials: Acrylic, Frosted, Sanded (frosted + grain), Expressive, Heavy frost, or your own tint, haze and grain (Settings ▸ Plugins ▸ Acrylic). Real blur is Win11 Glass. Linux / Glass off blurs Chat Backdrop only. Reduced transparency goes solid.',
   colors: LIGHT,
   darkColors: DARK,
   typography: {
@@ -838,11 +963,16 @@ const THEME = {
   customCSS: CSS
 }
 
-const PRESET_IDS = ['acrylic', 'frosted', 'sanded', 'expressive']
-const PRESET_LABELS = { acrylic: 'Acrylic', frosted: 'Frosted', sanded: 'Sanded', expressive: 'Expressive' }
+const PRESET_IDS = ['acrylic', 'frosted', 'sanded', 'expressive', 'heavy']
+const CUSTOM = 'custom'
+const PRESET_LABELS = { acrylic: 'Acrylic', frosted: 'Frosted', sanded: 'Sanded', expressive: 'Expressive', heavy: 'Heavy frost', custom: 'Custom' }
 const PRESET_KEY = 'hermes-acrylic-preset'
 const PRESET_ATTR = 'data-hermes-acrylic-preset'
 const PRESET_EVENT = 'hermes-acrylic-preset'
+const CUSTOM_KEY = 'hermes-acrylic-custom'
+const OPTIONS_STYLE_ID = 'hermes-acrylic-options-css'
+const GRAIN_KINDS = ['off', 'fine', 'coarse']
+const GRAIN_LABELS = { off: 'Off', fine: 'Fine', coarse: 'Coarse' }
 
 // ---------------------------------------------------------------------------
 // Universal Acrylic State & Style Manager
@@ -968,6 +1098,7 @@ function disposeFocusTracker() {
 
 function dispose() {
   disposeFocusTracker()
+  removeOptionsStyle()
 }
 
 function toggleAcrylicEnabled(next) {
@@ -993,23 +1124,116 @@ function useAcrylicEnabled() {
   return enabled
 }
 
+function isDarkMode() {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+}
+
+// A preset's values for one mode (only Acrylic's Tint differs by mode).
+function presetOptions(id, dark) {
+  const p = PRESET_OPTIONS[id] || PRESET_OPTIONS.acrylic
+  const tint = typeof p.tint === 'object' ? (dark ? p.tint.dark : p.tint.light) : p.tint
+  return { tint, haze: p.haze, grain: p.grain, grainStrength: p.grainStrength }
+}
+
+function cleanOptions(o, fallback) {
+  return {
+    tint: clampNumber(o && o.tint, TINT_MIN, TINT_MAX, fallback.tint),
+    haze: clampNumber(o && o.haze, 0, 100, fallback.haze),
+    grain: o && GRAIN_KINDS.includes(o.grain) ? o.grain : fallback.grain,
+    grainStrength: clampNumber(o && o.grainStrength, 0, 100, fallback.grainStrength)
+  }
+}
+
+// Custom values, kept in memory too so they still work where storage throws.
+let customMemo = null
+
+function readCustom() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_KEY)
+    if (raw) return cleanOptions(JSON.parse(raw), presetOptions('acrylic', isDarkMode()))
+  } catch {
+    // Unreadable or blocked storage: fall back to this session's values.
+  }
+  return customMemo
+}
+
+function saveCustom(options) {
+  customMemo = cleanOptions(options, presetOptions('acrylic', isDarkMode()))
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(customMemo)) } catch { /* ignore */ }
+  return customMemo
+}
+
+// The values the options page shows: the preset's own, or the Custom ones.
+function currentOptions(preset, dark) {
+  if (preset === CUSTOM) return readCustom() || presetOptions('acrylic', dark)
+  return presetOptions(preset, dark)
+}
+
+// The plugin's own small stylesheet, CSS variables only, read by the theme's
+// rules: the grain tiles (drawn at runtime, so they cannot sit in the static
+// theme CSS) and, while Custom is on, Custom's values. html:root outranks
+// :root.dark, so one Custom value covers both modes.
+function optionsCss(custom) {
+  const sanded = PRESET_OPTIONS.sanded
+  const heavy = PRESET_OPTIONS.heavy
+  const tiles = `:root {
+  --acrylic-noise-flyout: ${noiseTile(1, FLYOUT_NOISE_ALPHA)};
+  --acrylic-noise-sanded: ${grainImage(sanded.grain, sanded.grainStrength)};
+  --acrylic-noise-heavy: ${grainImage(heavy.grain, heavy.grainStrength)};
+}`
+  if (!custom) return tiles
+  return `${tiles}
+html:root[${PRESET_ATTR}='${CUSTOM}'] {
+  --acrylic-chrome-keep: ${custom.tint}%;
+  --acrylic-haze: ${hazeAlpha(custom.haze)};
+  --acrylic-grain: ${grainImage(custom.grain, custom.grainStrength)};
+  --acrylic-blur: 18px;
+  --acrylic-saturate: 1.12;
+}`
+}
+
+function installOptionsStyle() {
+  if (typeof document === 'undefined') return
+  const custom = readCustom()
+  let el = document.getElementById(OPTIONS_STYLE_ID)
+  if (!el) {
+    el = document.createElement('style')
+    el.id = OPTIONS_STYLE_ID
+    const head = document.head || document.documentElement
+    if (head && head.appendChild) head.appendChild(el)
+  }
+  const css = optionsCss(custom)
+  if (el.textContent !== css) el.textContent = css
+}
+
+function removeOptionsStyle() {
+  if (typeof document === 'undefined') return
+  const el = document.getElementById(OPTIONS_STYLE_ID)
+  if (el) el.remove()
+}
+
+function isPreset(name) {
+  return PRESET_IDS.includes(name) || (name === CUSTOM && Boolean(readCustom()))
+}
+
 function readPreset() {
   try {
     const saved = localStorage.getItem(PRESET_KEY)
-    if (PRESET_IDS.includes(saved)) return saved
+    if (isPreset(saved)) return saved
   } catch {
     // localStorage can throw in locked-down webviews.
   }
   if (typeof document !== 'undefined') {
     const attr = document.documentElement.getAttribute(PRESET_ATTR)
-    if (PRESET_IDS.includes(attr)) return attr
+    if (isPreset(attr)) return attr
   }
   return 'acrylic'
 }
 
 function applyPreset(name) {
-  const preset = PRESET_IDS.includes(name) ? name : 'acrylic'
+  const preset = isPreset(name) ? name : 'acrylic'
   try { localStorage.setItem(PRESET_KEY, preset) } catch { /* ignore */ }
+  installOptionsStyle()
   if (typeof document !== 'undefined') {
     document.documentElement.setAttribute(PRESET_ATTR, preset)
     document.dispatchEvent(new CustomEvent(PRESET_EVENT, { detail: preset }))
@@ -1022,6 +1246,23 @@ function selectPreset(name) {
   applyPreset(name)
 }
 
+// Picking Custom brings back the last Custom values; the first time, it starts
+// from what is on screen now.
+function selectCustom() {
+  if (!readCustom()) saveCustom(currentOptions(readPreset(), isDarkMode()))
+  applyPreset(CUSTOM)
+}
+
+// Any change on the options page makes the look Custom, starting from the
+// values on screen (the preset's, or the earlier Custom ones).
+function setOption(key, value) {
+  const base = currentOptions(readPreset(), isDarkMode())
+  const next = { ...base, [key]: value }
+  if (key === 'grain' && value !== 'off' && !next.grainStrength) next.grainStrength = PRESET_OPTIONS.sanded.grainStrength
+  saveCustom(next)
+  applyPreset(CUSTOM)
+}
+
 function usePreset() {
   const [preset, setPreset] = useState(readPreset)
   useEffect(() => {
@@ -1031,6 +1272,19 @@ function usePreset() {
     return () => document.removeEventListener(PRESET_EVENT, sync)
   }, [])
   return preset
+}
+
+// Preset plus the values behind it; a fresh object on every change, so a
+// Custom edit re-renders even though the preset name stays 'custom'.
+function useAcrylicOptions() {
+  const read = () => ({ preset: readPreset(), custom: readCustom() })
+  const [state, setState] = useState(read)
+  useEffect(() => {
+    const sync = () => setState(read())
+    document.addEventListener(PRESET_EVENT, sync)
+    return () => document.removeEventListener(PRESET_EVENT, sync)
+  }, [])
+  return state
 }
 
 // "Linux" here means Linux WITHOUT host Glass: the CSS-fallback path. A Hermes with Glass on (Windows, or opt-in Linux Glass) takes the Glass path.
@@ -1045,9 +1299,21 @@ function readGlassOn() {
   return root.hasAttribute('data-hermes-glass') || root.hasAttribute('data-hermes-glass-on')
 }
 
+// Hermes' own deep link to Settings ▸ Appearance ▸ Window & layout, where
+// Window Translucency lives (appearance-subpages.ts 'window-layout'). The
+// nav.settings action alone lands on Settings' first page, so once it has
+// opened Settings (hash route), step on to that page.
+const GLASS_SETTINGS_HASH = '#/settings?tab=config:appearance&page=window-layout'
+
 function openAppearanceSettings() {
   const r = pluginCtx && typeof pluginCtx.runAction === 'function' ? pluginCtx.runAction('nav.settings') : null
-  if (!r || r.ok === false) host.notify({ kind: 'info', message: 'Open Settings → Appearance → Window Translucency and pick Glass.' })
+  if (!r || r.ok === false) {
+    host.notify({ kind: 'info', message: 'Open Settings → Appearance → Window & layout → Window Translucency and pick Glass.' })
+    return
+  }
+  setTimeout(() => {
+    if (typeof location !== 'undefined' && location.hash.startsWith('#/settings')) location.hash = GLASS_SETTINGS_HASH
+  }, 60)
 }
 
 function setBackdropEnabled(on) {
@@ -1108,12 +1374,12 @@ function AppearanceCard() {
   const step = text => jsx('li', { children: text })
   const steps = linux ? [
     'Pick the Windows Acrylic theme (or turn on Every theme to tint any theme).',
-    'This Hermes has no Glass, so you get a CSS stand-in over Chat Backdrop: Acrylic blurs at 14px, Frosted and Sanded at 18px, Expressive at 16px. It does not blur other apps.',
+    'This Hermes has no Glass, so you get a CSS stand-in over Chat Backdrop: Acrylic blurs at 14px, Expressive at 16px, the others at 18px. It does not blur other apps.',
     'Optional, outside this plugin: a KWin or Hyprland blur rule can frost the real desktop.'
   ] : glassOn ? [
     'Glass is on: Windows draws the real acrylic behind the window.',
-    'Presets change how deep the tint is: Acrylic, Frosted, Sanded, Expressive.',
-    'Ctrl+K and full-page cards (Settings, Scheduled jobs) show the real acrylic; menus get a denser glass. The terminal is one solid panel in the theme colour.'
+    'Presets set the tint, haze and grain: Acrylic, Frosted, Sanded, Expressive, Heavy frost. Change any of them in Tint, haze & grain and the look becomes Custom.',
+    'Ctrl+K and full-page cards (Settings, Scheduled jobs) show the real acrylic; menus and dialogs get the theme\'s solid background. The terminal is one solid panel in the theme colour.'
   ] : [
     'Pick the Windows Acrylic theme (or turn on Every theme to tint any theme).',
     'For real acrylic: Settings → Appearance → Window Translucency → Glass (the Glass settings button opens Settings). Acrylic never changes that setting for you.',
@@ -1163,19 +1429,133 @@ function AppearanceCard() {
       }),
       jsxs('div', {
         className: 'flex flex-wrap gap-1',
-        children: PRESET_IDS.map(id => jsx(Button, {
-          key: id,
-          size: 'sm',
-          disabled: preset === id,
-          onClick: () => { haptic('tap'); selectPreset(id) },
-          children: preset === id ? `${PRESET_LABELS[id]} · on` : PRESET_LABELS[id]
-        }))
+        children: [
+          ...[...PRESET_IDS, CUSTOM].map(id => jsx(Button, {
+            key: id,
+            size: 'sm',
+            disabled: preset === id,
+            onClick: () => { haptic('tap'); if (id === CUSTOM) selectCustom(); else selectPreset(id) },
+            children: preset === id ? `${PRESET_LABELS[id]} · on` : PRESET_LABELS[id]
+          })),
+          jsx(Button, {
+            key: 'options',
+            size: 'sm',
+            variant: 'ghost',
+            onClick: () => { haptic('tap'); openOptions() },
+            children: 'Tint, haze & grain…'
+          })
+        ]
       }),
       jsx('ol', {
         className: 'list-decimal pl-5 text-xs text-(--ui-text-secondary) space-y-0.5',
         children: steps.map(step)
       }),
       jsx('div', { className: 'text-xs text-(--ui-text-tertiary)', children: footnote })
+    ]
+  })
+}
+
+// Settings ▸ Plugins ▸ Acrylic (contribution id `hermes-acrylic:options`).
+const OPTIONS_HASH = '#/settings?tab=plugins&plugin=hermes-acrylic'
+
+function openOptions() {
+  if (typeof location !== 'undefined') location.hash = OPTIONS_HASH
+}
+
+// Hermes' Slider is not on the plugin SDK, so this is the same control by hand:
+// its hairline track and primary-accent thumb, with the value beside it.
+function OptionSlider({ id, label, value, min, max, unit = '', disabled = false, onChange }) {
+  return jsxs('div', {
+    className: 'flex items-center gap-3',
+    children: [
+      jsx('input', {
+        id,
+        type: 'range',
+        min,
+        max,
+        step: 1,
+        value,
+        disabled,
+        'aria-label': label,
+        className: 'h-1 w-40 cursor-pointer appearance-none rounded-full bg-(--ui-stroke-tertiary) disabled:cursor-default disabled:opacity-50',
+        style: { accentColor: 'var(--dt-primary)' },
+        onChange: e => onChange(Number(e.currentTarget.value))
+      }),
+      jsx('span', {
+        className: 'w-10 text-right text-xs tabular-nums text-(--ui-text-secondary)',
+        children: `${value}${unit}`
+      })
+    ]
+  })
+}
+
+function OptionsPage() {
+  const { themeName, resolvedMode } = useTheme()
+  const { preset } = useAcrylicOptions()
+  const enabled = useAcrylicEnabled()
+  const glassOn = useGlassOn()
+  const dark = resolvedMode ? resolvedMode === 'dark' : isDarkMode()
+  const o = currentOptions(preset, dark)
+  const active = enabled || themeName === THEME_NAME
+  const grainOff = o.grain === 'off'
+  const rows = [
+    jsx(ListRow, {
+      key: 'preset',
+      title: 'Preset',
+      description: 'A preset fills in the settings below. Change any of them and the preset becomes Custom.',
+      action: jsx(SegmentedControl, {
+        sizing: 'content',
+        value: preset,
+        options: [...PRESET_IDS, CUSTOM].map(id => ({ id, label: PRESET_LABELS[id] })),
+        onChange: id => { haptic('tap'); if (id === CUSTOM) selectCustom(); else selectPreset(id) }
+      })
+    }),
+    jsx(ListRow, {
+      key: 'tint',
+      title: 'Tint',
+      description: glassOn
+        ? 'How much of the theme colour lies over the glass. Lower shows more of your desktop.'
+        : 'How much of the theme colour lies over the glass. Lower shows more of your desktop. Takes effect with Glass on.',
+      action: jsx(OptionSlider, { id: 'hermes-acrylic-tint', label: 'Tint', value: o.tint, min: TINT_MIN, max: TINT_MAX, unit: '%', onChange: v => setOption('tint', v) })
+    }),
+    jsx(ListRow, {
+      key: 'haze',
+      title: 'Frost haze',
+      description: 'A milky layer over the glass. Raise it for heavy frosted glass.',
+      action: jsx(OptionSlider, { id: 'hermes-acrylic-haze', label: 'Frost haze', value: o.haze, min: 0, max: 100, onChange: v => setOption('haze', v) })
+    }),
+    jsx(ListRow, {
+      key: 'grain',
+      title: 'Grain',
+      description: 'A fine sand texture on the glass.',
+      action: jsx(SegmentedControl, {
+        value: o.grain,
+        options: GRAIN_KINDS.map(id => ({ id, label: GRAIN_LABELS[id] })),
+        onChange: id => { haptic('tap'); setOption('grain', id) }
+      })
+    }),
+    jsx(ListRow, {
+      key: 'grain-strength',
+      title: 'Grain strength',
+      description: grainOff ? 'Pick Fine or Coarse grain first.' : 'How visible the grain is.',
+      action: jsx(OptionSlider, { id: 'hermes-acrylic-grain-strength', label: 'Grain strength', value: o.grainStrength, min: 0, max: 100, disabled: grainOff, onChange: v => setOption('grainStrength', v) })
+    }),
+    jsx(ListRow, {
+      key: 'blur',
+      title: 'Blur',
+      description: 'Windows draws the blur behind the window, and no app can make it stronger. Glass itself is in Settings → Appearance → Window & layout.',
+      action: jsx(Button, { size: 'sm', variant: 'outline', onClick: () => { haptic('tap'); openAppearanceSettings() }, children: 'Glass settings' })
+    })
+  ]
+  return jsxs('div', {
+    className: 'flex flex-col',
+    children: [
+      active ? null : jsx('div', {
+        key: 'inactive',
+        className: 'mb-2 rounded-md border border-(--ui-stroke-tertiary) p-3 text-xs text-(--ui-text-secondary)',
+        children: 'These settings show while the Windows Acrylic theme is selected or Every theme is on.'
+      }),
+      ...rows
     ]
   })
 }
@@ -1187,7 +1567,7 @@ function StatusChip() {
   const preset = usePreset()
   const linux = isLinuxPlatform()
   const on = enabled || themeName === THEME_NAME
-  const look = preset === 'acrylic' ? 'acrylic' : preset
+  const look = (PRESET_LABELS[preset] || 'acrylic').toLowerCase()
   const label = !on ? '◇ acrylic off'
     : glassOn ? `◇ ${look}`
     : linux ? `◇ ${look} (css)`
@@ -1268,6 +1648,14 @@ export default {
       { id: 'appearance', area: APPEARANCE_AREAS.extra, render: () => jsx(AppearanceCard, {}) },
       { id: 'chip', area: STATUSBAR_AREAS.right, order: 140, render: () => jsx(StatusChip, {}) }
     ])
+    // Settings ▸ Plugins ▸ Acrylic. Feature-detected: older Hermes builds
+    // without plugin settings pages still get the card and the presets.
+    ctx.registerSettingsPage?.({
+      id: 'options',
+      title: 'Acrylic',
+      icon: 'paintcan',
+      render: () => jsx(OptionsPage, {})
+    })
   },
   dispose() {
     dispose()

@@ -211,13 +211,13 @@
       <p>
         Same recipe as the plugin when <code>[data-hermes-glass]</code> is absent:
         blur the stand-in wallpaper with <code>blur(30px) saturate(1.25)</code>,
-        then paint Packshot <code>--material-tint</code> at alpha .55.
+        then paint the reference <code>--material-tint</code> at alpha .55.
         Composer, bubble, menu, and code stay solid.
         This does not blur other apps. Real acrylic is still Win11 Glass, frost under-window, scope window.
       </p>
     </header>
     <div class="stage">
-      <section class="window dark" aria-label="Dark Packshot fallback">
+      <section class="window dark" aria-label="Dark fallback">
         <div class="standin"></div>
         <div class="plate"></div>
         <div class="ui">
@@ -244,7 +244,7 @@ filter: blur(30px) saturate(1.25)</pre>
           </div>
         </div>
       </section>
-      <section class="window light" aria-label="Light Packshot fallback">
+      <section class="window light" aria-label="Light fallback">
         <div class="standin"></div>
         <div class="plate"></div>
         <div class="ui">
@@ -258,7 +258,7 @@ filter: blur(30px) saturate(1.25)</pre>
           </aside>
           <div class="chat">
             <h2>Light plate</h2>
-            <p class="sub">Same wallpaper, light Packshot tint.</p>
+            <p class="sub">Same wallpaper, light tint.</p>
             <div class="bubble">Holdouts use the opaque card fill, not the plate.</div>
             <pre class="code">rgba(252,252,252,.55)</pre>
             <div class="composer">Message — solid composer</div>
@@ -266,7 +266,7 @@ filter: blur(30px) saturate(1.25)</pre>
         </div>
       </section>
     </div>
-    <section class="math" aria-label="Packshot 0.55 composite">
+    <section class="math" aria-label="0.55 composite">
       <div class="swatches">
         <figure class="swatch">
           <div class="chip" style="background:#3a7bff"></div>
